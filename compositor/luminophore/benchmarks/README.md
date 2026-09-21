@@ -1,35 +1,39 @@
-# Spatial preview measurement
+# 공간 프리뷰 측정
 
-`luminophore/scripts/benchmark-spatial-preview` compiles the pure model/projection/commit
-preparation fixture with C++23 and `-O2`, then prints JSON Lines. It never opens a
-compositor connection. `--baseline PATH` points to the pre-change `src/luminophore`
-copy and runs the old uncached calculation on the same input trace. The current
-run uses the actual native grab cache class.
+**한국어** · [English](README.en.md)
 
-Fixtures cover 9×5 / 15×5, 1 / 16 / 75 tiled windows (75 is omitted on 9×5),
-0 / 10 / 100 floating windows, and 1 / 2 / 4 outputs: 45 valid configurations.
-Each gets 1,000 same-cell samples and 1,000 changing-cell samples. The program
-rejects invalid fixtures and reports calls plus p50/p95/p99 nanoseconds for model
-snapshot, copy, transact, projection, prepare and total sample processing.
-The snapshot here is the **pure model snapshot**, not Runtime's host/window
-snapshot. Native host validation, IPC, serialization, GTK rendering, driver and
-presentation costs are excluded. Cache-hit percentiles intentionally include
-cheap samples; one measured miss is not a statistical estimate of miss latency.
-Use a quiet machine and record compiler/CPU/load with comparisons.
+`luminophore/scripts/benchmark-spatial-preview`는 순수 model/projection/commit
+준비 fixture를 C++23과 `-O2`로 컴파일한 뒤 JSON Lines를 출력합니다.
+컴포지터 연결은 열지 않습니다. `--baseline PATH`는 변경 전
+`src/luminophore` 복사본을 가리키며 동일한 input trace에 대해 기존의 cache 없는
+계산을 실행합니다. 현재 실행은 실제 native grab cache class를 사용합니다.
 
-For an independently authorized compositor/Shell session, set
-`LUMINOPHORE_SPATIAL_PREVIEW_METRICS=1` in the process environments before launch.
-This does not install/restart anything itself. Native grab end emits aggregate
-counts, total/max nanoseconds and bounded log2 time buckets to the process log;
-Shell cancellation/completion emits counts and p50/p95/p99 of its last 2,048
-samples through Python logging. Data is timings/counters only, with no window
-names or application content. The native snapshot metric includes full Runtime
-snapshot construction; other read consumers can contribute to that counter.
-There is no per-pointer log or file I/O. Leave the variable unset normally.
+fixture는 9×5 / 15×5, tiled window 1 / 16 / 75개(9×5에서는 75개 제외),
+floating window 0 / 10 / 100개, output 1 / 2 / 4개를 조합한 45개의 유효 구성을
+다룹니다. 각 구성마다 same-cell sample 1,000개와 changing-cell sample 1,000개를
+실행합니다. 프로그램은 잘못된 fixture를 거부하고 model snapshot, copy,
+transaction, projection, prepare, 전체 sample processing에 대해 호출 수와
+p50/p95/p99 나노초를 보고합니다. 여기서 snapshot은 **순수 model snapshot**이며
+Runtime의 host/window snapshot이 아닙니다. native host validation, IPC,
+serialization, GTK rendering, driver, presentation 비용은 제외됩니다.
+cache-hit percentile에는 의도적으로 저렴한 sample이 포함됩니다. 한 번 측정된
+cache miss를 miss latency의 통계적 추정치로 사용하면 안 됩니다. 비교 시에는
+조용한 머신을 사용하고 compiler/CPU/load를 함께 기록하세요.
 
-For actual frame pacing, record output refresh rate and identical window/output
-fixtures, then correlate pointer input, preview presentation, presented intervals,
-missed frames and main-thread CPU. Include same-cell jitter, A→B→A, rapid traversal,
-collision/bounds, pause→release, cancellation, unmap and hotplug. Compare 60 Hz and
-the device's higher refresh rate. CPU microbenchmarks and build/unit-test results
-cannot certify presentation latency or establish a device-specific time budget.
+독립적으로 승인된 compositor/Shell 세션에서는 실행 전에 두 프로세스 환경에
+`LUMINOPHORE_SPATIAL_PREVIEW_METRICS=1`을 지정할 수 있습니다. 이 설정 자체는
+설치나 재시작을 수행하지 않습니다. native grab 종료 시 process log에 aggregate
+count, total/max nanoseconds, 제한된 log2 time bucket을 기록합니다. Shell의
+cancel/completion은 Python logging을 통해 최근 2,048개 sample의 count와
+p50/p95/p99를 기록합니다. 데이터는 timing/counter만 포함하며 window name이나
+application content는 포함하지 않습니다. native snapshot metric에는 전체 Runtime
+snapshot construction이 포함되고, 다른 read consumer도 그 counter에 기여할 수
+있습니다. pointer별 log나 file I/O는 없습니다. 평소에는 이 변수를 설정하지 마세요.
+
+실제 frame pacing을 측정하려면 output refresh rate와 동일한 window/output fixture를
+기록한 뒤 pointer input, preview presentation, presented interval, missed frame,
+main-thread CPU를 상호 연관해 분석하세요. same-cell jitter, A→B→A, 빠른 이동,
+collision/bounds, pause→release, cancellation, unmap, hotplug을 포함해야 합니다.
+60 Hz와 장치의 더 높은 refresh rate를 비교하세요. CPU microbenchmark와
+build/unit-test 결과만으로 presentation latency를 인증하거나 장치별 time budget을
+정할 수는 없습니다.

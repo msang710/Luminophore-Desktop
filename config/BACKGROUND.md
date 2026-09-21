@@ -1,4 +1,6 @@
-# Native scene wallpaper
+# 네이티브 장면 배경화면
+
+**한국어** · [English / original](BACKGROUND.en.md)
 
 설정 앱의 **배경화면 → 배경화면 제작**에서 왼쪽·오른쪽 이미지를 하나의 장면으로 만든다. 파일을 고르는 것만으로 현재 배경이 바뀌지는 않는다.
 
@@ -10,7 +12,7 @@
 
 선택기의 방향키·휠·화살표·옆 카드는 장면을 탐색하고 Enter/적용/중앙 카드 클릭은 전환을 요청한다. Escape와 바깥 클릭은 닫는다. 1차 디자인은 세 개의 고정 슬롯, 중앙 pair 카드, 모니터 팔레트와 기존 Shell 발광·motion 경로를 사용한다. 간격·크기·속도는 실제 화면을 본 뒤 조정한다.
 
-## Build and validation
+## 빌드와 검증
 
 Native 의존성은 C11, wayland-client/wayland-egl, EGL/GLES2, libpng, libjpeg, json-c, wayland-scanner와 wayland-protocols다. 기존 GTK4/gtk4-layer-shell Shell 의존성도 필요하다.
 
@@ -26,7 +28,7 @@ LUMINOPHORE_PROFILE_PYTHON=/path/to/profile-runtime/bin/python scripts/verify-ba
 
 후보 설정 UI를 확인할 때는 해당 후보 `shell/luminophore-shell settings --page wallpaper`를 실행하고 `LUMINOPHORE_PROFILE_PYTHON`을 준비한 제작 환경에 지정한다. 실제 적용은 대응 Shell daemon과 native binary를 함께 활성화한 뒤에만 한다. 설치·서비스 재시작·세션 재시작은 이 검증 스크립트가 수행하지 않는다.
 
-## Contracts and limits
+## 계약과 제한
 
 - Scene/Profile/Package/IPC schema 1. package compiler identity는 `opencv-<version>/luminophore-profile-2`. 원본 hash, draft와 compiler identity로 생성물을 구분한다.
 - PNG/JPEG 원본, 제작 입력 800만 픽셀, native 정적 입력 3,200만 픽셀. EXIF 방향은 프로필 제작에서 정규화한다. 직접 정적 scene의 JPEG는 원본 픽셀 방향을 사용한다.
@@ -38,7 +40,7 @@ LUMINOPHORE_PROFILE_PYTHON=/path/to/profile-runtime/bin/python scripts/verify-ba
 - scene 목록 최대 1,000개, 작업 이력 64개, pending 최신 요청 1개. PREPARE/READY 후 공통 monotonic 시작 시간을 사용하고, 두 출력의 최종 presentation feedback 이후만 현재 scene과 palette를 갱신한다. 서로 다른 vblank 자체를 동기화하지는 않는다.
 - 초기 역할 바인딩은 서로 다른 x 위치의 정확히 두 출력만 지원한다. 미지원 배치는 명시적으로 거부한다.
 
-## Ownership and recovery
+## 소유권과 복구
 
 `BackgroundSceneController`가 유일한 적용 소유자다. Settings는 초안과 저장된 scene을 편집하고 IPC는 scene intent를 전달한다. scene 목록은 `$XDG_CONFIG_HOME/luminophore-shell/wallpaper-scenes.json`, 프로필과 last-good는 `$XDG_STATE_HOME/luminophore-shell` 아래에 저장한다.
 
@@ -48,6 +50,6 @@ LUMINOPHORE_PROFILE_PYTHON=/path/to/profile-runtime/bin/python scripts/verify-ba
 
 수동 개발 rollback은 Shell을 정지한 뒤 last-good state를 **삭제하지 않고 별도 보관**하고 기존 Shell/provider를 복구하는 별도 운영 절차다. 제품 runtime의 fallback과 다르다. 원본과 scene library는 그대로 유지한다. Greeter/login 경로는 변경하지 않는다.
 
-## Still needs a real session
+## 실제 세션에서 추가 검증 필요
 
 실제 Wayland의 dual presentation, hotplug/kill 복구, 모니터별 scale/crop/이음새, 검은 frame 유무, 키보드/바깥 클릭/input-empty, 60/144Hz frame pacing, 사용자 원본의 마스크·채움 품질과 디자인 수용은 실기 검증 대상이다. Offscreen EGL와 fixture 통과로 이 항목을 완료 처리하지 않는다.
