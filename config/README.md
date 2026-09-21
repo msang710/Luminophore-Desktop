@@ -1,5 +1,7 @@
 # Luminophore Desktop
 
+**한국어** · [English](README.en.md)
+
 Hyprland용 개인 rice와 GTK4 기반 Luminophore Shell입니다. 배경화면을 `matugen`으로 분석해 위젯 팔레트를 만들고, 별도 적용 버튼으로 GTK3/4, Qt5/6, KDE, Kitty, Alacritty, Btop, Ghostty, Hyprland와 Bibata 커서를 동기화합니다.
 
 ## 주요 기능
@@ -117,16 +119,15 @@ Plymouth 마지막 프레임 유지도 Greeter 설치와 독립된 transaction�
 
 `--retain-splash` drop-in은 독립 rollback을 가진 transaction으로 적용·read-back까지 완료했습니다. Lua blur/portal 보정이 포함된 실제 cold-boot 시각·journal 검증은 별도 reboot gate로 남아 있습니다.
 
-### Boot health first-frame signal
+### 부팅 상태의 첫 프레임 신호
 
-The daemon arms the launcher layer surface after calling `present()`. It writes
-`$XDG_RUNTIME_DIR/luminophore-shell/first-frame-ready.json` only after GDK reports a
-completed frame timing with a non-zero presentation time, which is the public
-GTK/GDK indication that the frame became visible. The private atomic signal is
-bound to the current boot ID, kernel release, Shell process ID, and monotonic
-timestamp. Update Guardian compares the same process identity across its
-stability window; a Shell restart therefore cannot reuse an earlier signal as
-healthy evidence.
+daemon은 `present()`를 호출한 뒤 launcher layer surface를 arm합니다.
+GDK가 0이 아닌 presentation time을 가진 completed frame timing을 보고한 뒤에만
+`$XDG_RUNTIME_DIR/luminophore-shell/first-frame-ready.json`을 기록합니다.
+이는 frame이 실제로 표시됐음을 나타내는 공개 GTK/GDK 신호입니다. 전용 atomic
+signal은 현재 boot ID, kernel release, Shell process ID와 monotonic timestamp에
+묶입니다. Update Guardian은 stability window 동안 동일한 process identity를
+비교하므로 Shell을 재시작해 이전 signal을 정상 상태의 근거로 재사용할 수 없습니다.
 
 ## 개발 및 검증
 
@@ -141,36 +142,34 @@ python -m compileall -q luminophore_shell tests
 
 [MIT](LICENSE)
 
-### App initial placement
+### 앱 최초 배치
 
-In Luminophore Settings → compositor, select a running app (or enter its exact
-Wayland app ID / XWayland class) and choose a view-relative direction. Save and
-apply affects newly mapped regular Board windows only. Choosing the default
-removes the app override. Floating windows, dialogs and PiP retain their existing
-placement behavior.
+Luminophore Settings → compositor에서 실행 중인 앱을 선택하거나 정확한 Wayland
+app ID / XWayland class를 입력하고 view 기준 방향을 선택합니다. 저장 후 적용하면
+새로 map되는 일반 Board 창에만 영향을 줍니다. default를 선택하면 앱 override를
+제거합니다. floating window, dialog, PiP는 기존 배치 동작을 유지합니다.
 
-Causal placement takes precedence, putting a window to the right of its source.
-App rules apply only to confirmed direct launches through the Shell or the
-packaged app launch shortcuts (`luminophore-shell launch -- <argv>`).
-Unknown origins use the existing fallback even when an app rule exists.
-A one-shot compositor token, expiring after 30 seconds, is passed using the UWSM
-unit Environment property and consumed by the first mapped window. Missing or
-unreadable process metadata falls back; it is not inferred from timing or PID.
-Custom shortcuts can use the same launch command. Ordinary exec/autostart does
-not claim a direct user launch.
-The reference is the cursor monitor's current view when the new window appears.
-The boundary's middle cell determines the perpendicular alignment; an occupied
-cell pushes its chain in the requested direction. WIDE keeps its existing view
-preservation policy. No coordinates or permanent reservations are configured.
+causal placement가 우선하며 창을 source 오른쪽에 배치합니다. 앱 규칙은 Shell이나
+패키지에 포함된 앱 실행 단축키(`luminophore-shell launch -- <argv>`)를 통해
+직접 실행된 것이 확인된 경우에만 적용됩니다. 출처를 알 수 없는 경우 앱 규칙이
+있어도 기존 fallback을 사용합니다. 30초 뒤 만료되는 one-shot compositor token은
+UWSM unit Environment property를 통해 전달되고 최초로 map된 창이 소비합니다.
+process metadata가 없거나 읽을 수 없으면 fallback하며 timing이나 PID로 추론하지
+않습니다. 사용자 정의 단축키도 같은 launch 명령을 사용할 수 있습니다. 일반
+exec/autostart는 직접 사용자 실행으로 간주하지 않습니다.
 
-The generated `luminophore_placements.lua` is a single atomic settings file.
-Configuration errors leave it saved with a pending-application message; the
-settings application does not retry an ambiguous reload or restart the session.
+기준은 새 창이 나타날 때 cursor monitor의 현재 view입니다. 경계의 가운데 cell이
+수직 방향 정렬을 결정하며, 점유된 cell은 요청 방향으로 해당 chain을 밀어냅니다.
+WIDE는 기존 view 보존 정책을 유지합니다. 좌표나 영구 reservation은 설정하지 않습니다.
 
-For hand-written native window rules, the static effect is
-`initial_placement = "right"` (`left`, `up`, `down`, `default` are also accepted).
-It never repositions an already registered window. This is a Luminophore
-extension and needs separate upstream wiki documentation if proposed upstream.
+생성되는 `luminophore_placements.lua`는 하나의 atomic settings file입니다.
+설정 오류가 발생하면 pending-application 메시지와 함께 저장된 상태를 유지하며,
+settings application은 모호한 reload를 재시도하거나 세션을 재시작하지 않습니다.
+
+직접 작성한 native window rule에서는 static effect로
+`initial_placement = "right"`를 사용합니다(`left`, `up`, `down`, `default`도
+허용). 이미 등록된 창을 다시 배치하지는 않습니다. 이는 Luminophore 확장이므로
+upstream에 제안할 경우 별도의 upstream wiki 문서가 필요합니다.
 
 ## 창 그룹 호환 경로 제거
 
