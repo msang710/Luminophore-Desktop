@@ -1,0 +1,14 @@
+[Unit]
+Description=Luminophore input method
+PartOf=luminophore-session.target
+ConditionPathExists=%t/luminophore/session.env
+
+[Service]
+EnvironmentFile=%t/luminophore/session.env
+ExecCondition=/usr/bin/luminophore-session check
+ExecStart=/usr/bin/fcitx5
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=luminophore-session.target

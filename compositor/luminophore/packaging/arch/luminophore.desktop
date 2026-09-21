@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=Luminophore
+Comment=Luminophore desktop session
+Exec=/usr/bin/luminophore-session
+TryExec=/usr/bin/luminophore-session
+DesktopNames=Luminophore
+Type=Application

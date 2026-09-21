@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly tag="14.7.1.0"
+readonly commit="0f3070b27768afe821e8254952c161d3fc73338e"
+readonly repository="https://codeberg.org/Arcticons/Arcticons-Linux.git"
+
+source_dir=""
+data_home="${XDG_DATA_HOME:-${HOME}/.local/share}"
+
+while (($#)); do
+    case "$1" in
+        --source)
+            source_dir="${2:?--source requires a directory}"
+            shift 2
+            ;;
+        --data-home)
+            data_home="${2:?--data-home requires a directory}"
+            shift 2
+            ;;
+        *)
+            echo "unknown argument: $1" >&2
+            exit 2
+            ;;
+    esac
+done
+
+work_dir="$(mktemp -d)"
+cleanup() {
+    rm -rf -- "$work_dir"
+}
+trap cleanup EXIT
+
+if [[ -z "$source_dir" ]]; then
+    git clone --filter=blob:none --depth 1 --branch "$tag" --single-branch "$repository" "$work_dir/source"
+    source_dir="$work_dir/source"
+fi
+
+source_dir="$(realpath "$source_dir")"
+actual_commit="$(git -C "$source_dir" rev-parse HEAD)"
+actual_tag="$(git -C "$source_dir" describe --tags --exact-match)"
+if [[ "$actual_commit" != "$commit" || "$actual_tag" != "$tag" ]]; then
+    echo "Arcticons source mismatch: expected $tag@$commit, got $actual_tag@$actual_commit" >&2
+    exit 1
+fi
+if [[ ! -f "$source_dir/LICENSE" || ! -f "$source_dir/arcticons-dark/index.theme" ]]; then
+    echo "Arcticons source is incomplete" >&2
+    exit 1
+fi
+
+icons_root="$data_home/icons"
+base_target="$icons_root/arcticons-dark"
+overlay_target="$icons_root/luminophore-shell-arcticons"
+mkdir -p -- "$icons_root"
+
+if [[ -e "$base_target" ]]; then
+    if [[ ! -f "$base_target/.luminophore-shell-version" ]]; then
+        echo "Refusing to overwrite unmanaged theme: $base_target" >&2
+        exit 1
+    fi
+    installed_commit="$(sed -n '2p' "$base_target/.luminophore-shell-version")"
+    if [[ "$installed_commit" != "$commit" ]]; then
+        echo "Managed Arcticons has another version; review it before replacement: $base_target" >&2
+        exit 1
+    fi
+else
+    stage="$icons_root/.arcticons-dark.$$.stage"
+    mkdir -p -- "$stage"
+    cp -a -- "$source_dir/arcticons-dark/." "$stage/"
+    cp -- "$source_dir/LICENSE" "$stage/LICENSE"
+    {
+        echo "$tag"
+        echo "$commit"
+        echo "$repository"
+    } >"$stage/.luminophore-shell-version"
+    mv -- "$stage" "$base_target"
+fi
+
+if [[ -e "$overlay_target/index.theme" ]] && ! grep -q '^Name=Luminophore Shell Arcticons$' "$overlay_target/index.theme"; then
+    echo "Refusing to overwrite unmanaged overlay: $overlay_target" >&2
+    exit 1
+fi
+mkdir -p -- "$overlay_target/scalable/apps"
+overlay_tmp="$overlay_target/.index.theme.$$"
+{
+    echo '[Icon Theme]'
+    echo 'Name=Luminophore Shell Arcticons'
+    echo 'Comment=Approved local line icons over Arcticons'
+    echo 'Inherits=arcticons-dark,hicolor'
+    echo 'Directories=scalable/apps'
+    echo
+    echo '[scalable/apps]'
+    echo 'Size=48'
+    echo 'Type=Scalable'
+    echo 'MinSize=16'
+    echo 'MaxSize=512'
+    echo 'Context=Applications'
+} >"$overlay_tmp"
+chmod 0644 "$overlay_tmp"
+mv -- "$overlay_tmp" "$overlay_target/index.theme"
+
+echo "Installed Arcticons $tag and luminophore-shell overlay under $icons_root"

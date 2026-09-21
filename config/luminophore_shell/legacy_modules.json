@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "modules": {
+    "animations.lua": [
+      "b5f9f34c97959995d6acf21c12848503ceedfd394b24f6e55c479b68961f225c"
+    ],
+    "autostart.lua": [
+      "c2ab86fa60ca0885b2716e52d6dd2810e4708e84c66a0a17b7c0f060ae4fa0d0"
+    ],
+    "binds.lua": [
+      "b6e44f8d9944821576cb164f73e3412cb5c4c9414014d6410fd80d311e049e41"
+    ],
+    "colors.lua": [
+      "e32ea13e5dce785b27e9b57cf1864e585683fc1278d30ea2482e54c3e5ce791a"
+    ],
+    "decorations.lua": [
+      "7d7ff58597f7dd7cbbe45c7d66593e0fc0b551c2d37656889f5ad5b7e0f3ad19"
+    ],
+    "inputs.lua": [
+      "0ddb8f723b09ecaf5339a7812e75e1f638bf209a2e58e3c20ec4f9594931df8a"
+    ],
+    "luminophore_settings.lua": [
+      "73f4ffcd57fe4081a3dc518f47cd46132de6ec6cc0c61b646e188cdb1d6f94d7",
+      "257fceb23560d9edb3c946bac14a84871278dc869802912eddefbc11b9a22595"
+    ],
+    "misc.lua": [
+      "085875a8ca2dc6d6c4959a2a720139e5c11378e451670cc0d9e87b7f76bd2627"
+    ],
+    "windowrules.lua": [
+      "1d47042b524dec2c5d1c8dc295c0b457d4f5469e44792e332e8e432d08599361"
+    ],
+    "workspaces.lua": [
+      "b981f11597c3dc2408d56e74e208f1b5cf7c560d0637b6c648f55fcd77e98cb9"
+    ],
+    "hyprland.lua": [
+      "9cccea0ea18e571653dadc24e576780c725aa8d328fe5aeec0b4cf4e72f6fa0a"
+    ]
+  }
+}

@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+manifest=${LUMINOPHORE_MANIFEST:-"$script_dir/../build-manifest.json"}
+session="$script_dir/luminophore-compositor-session"
+
+if [[ ! -x "$session" || ! -r "$manifest" ]]; then
+    printf 'incomplete LUMINOPHORE canary artifact beside %s\n' "$script_dir" >&2
+    exit 1
+fi
+
+if [[ "${1:-}" == "--version" || "${1:-}" == "-v" ]]; then
+    printf 'LUMINOPHORE Compositor canary %s (source %s, upstream %s)\n' \
+        "$(jq -r '.binaries.Hyprland.sha256[0:16]' "$manifest")" \
+        "$(jq -r '.source_commit[0:12]' "$manifest")" \
+        "$(jq -r '.upstream_commit[0:12]' "$manifest")"
+fi
+
+export LUMINOPHORE_COMPOSITOR=1
+exec "$session" "$@"

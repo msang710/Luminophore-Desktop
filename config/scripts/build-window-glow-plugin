@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+project_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+output=${1:-"${TMPDIR:-/tmp}/luminophore-window-glow-plugin.so"}
+output_dir=$(dirname -- "$output")
+if [ ! -d "$output_dir" ]; then
+    install -d -m 755 "$output_dir"
+fi
+c++ -shared -fPIC -O2 -Wall -Wextra -Werror -std=c++23 \
+    $(pkg-config --cflags hyprland) \
+    "$project_root/native/window_glow_plugin.cpp" \
+    -o "$output" \
+    $(pkg-config --libs hyprland)
+printf '%s\n' "$output"

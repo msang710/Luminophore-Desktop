@@ -1,0 +1,19 @@
+[Unit]
+Description=Install verified Luminophore release for transaction %i
+After=pacman-init.service
+ConditionPathIsRegular=/var/lib/luminophore-update-guardian/queue/transaction-%i.json
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/luminophore-update-guardian/install-release %i
+UMask=0077
+TimeoutStartSec=15min
+NoNewPrivileges=no
+PrivateTmp=yes
+PrivateDevices=no
+ProtectHome=yes
+ProtectSystem=full
+ReadWritePaths=/var/lib/luminophore /var/lib/luminophore-update-guardian /var/lib/pacman /usr
+RestrictRealtime=yes
+LockPersonality=yes
+SystemCallArchitectures=native

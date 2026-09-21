@@ -1,0 +1,37 @@
+{
+  "product": "Luminophore Desktop",
+  "version": "0.1.0rc6-8",
+  "generation": "ed9685179fd06d3bced140ffd2b860c15ffc20c966549cdc9cc6df4e5e96120e",
+  "package": "luminophore-compositor-0.1.0rc6-8-x86_64.pkg.tar.zst",
+  "sha256": "5558037c12fcb68f4e2ab1f9b6e59a9db0c1561345a51a22538902bc14230d39",
+  "components": [
+    "compositor",
+    "control",
+    "shell",
+    "greeter",
+    "session",
+    "portal",
+    "runtime"
+  ],
+  "custom_kernel": false,
+  "legacy_neon_cleanup": "Performed on validation host; not automatic in this package",
+  "validation": "Boot and removal of overlapping widget glow confirmed by user; greeter/lock appearance remains different",
+  "source_import": {
+    "config": "d73bddc5ff71f8467d5fb04dfe3e633b23b32f5d",
+    "compositor": "257c53112a18ce510ca03362d9b6ee71bde872e8",
+    "Luminophore-OS": "39bfd9f37058300b5fff4d4c04ac74b58bbca1b4"
+  },
+  "source_import_note": "Imported working-tree snapshot, including uncommitted changes; source_import entries identify parent revisions, not the full snapshot.",
+  "import_validation": {
+    "runtime_suite": {
+      "passed": 140,
+      "skipped": 2,
+      "sandbox_restricted": 1
+    },
+    "assembly_suite_outside_sandbox": {
+      "passed": 15,
+      "failed": 0
+    },
+    "package_contains_kernel_or_boot_files": false
+  }
+}

@@ -1,0 +1,10 @@
+[Trigger]
+Operation = Remove
+Type = Package
+Target = luminophore-compositor
+
+[Action]
+Description = Checking active Luminophore sessions before removal...
+When = PreTransaction
+Exec = /usr/lib/luminophore/luminophore-admin --check-removal
+AbortOnFail

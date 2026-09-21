@@ -1,0 +1,15 @@
+[Unit]
+Description=Luminophore idle and suspend lock policy
+PartOf=luminophore-session.target
+ConditionPathExists=%t/luminophore/session.env
+
+[Service]
+EnvironmentFile=%t/luminophore/session.env
+ExecCondition=/usr/bin/luminophore-session check
+ExecCondition=/usr/bin/test -x /usr/bin/swayidle
+ExecStart=/usr/bin/swayidle -w timeout 300 '/usr/bin/systemctl --user start luminophore-session-lock.service' before-sleep '/usr/bin/systemctl --user start luminophore-session-lock.service'
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=luminophore-session.target

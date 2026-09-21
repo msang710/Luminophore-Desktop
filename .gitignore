@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.pkg.tar.*
+*.tar.gz
+/build/
+/dist/
+/.coexist-test/

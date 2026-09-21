@@ -1,0 +1,35 @@
+[Unit]
+Description=Evaluate and build one queued Luminophore desktop follow-up
+
+[Service]
+Type=oneshot
+User=luminophore-builder
+Group=luminophore-builder
+ExecStartPre=/usr/lib/luminophore-update-guardian/desktop-follow resume
+ExecStart=/usr/lib/luminophore-update-guardian/build-next
+UMask=0077
+TimeoutStartSec=12h
+Nice=10
+IOSchedulingClass=idle
+
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+ReadWritePaths=/var/lib/luminophore-update-guardian

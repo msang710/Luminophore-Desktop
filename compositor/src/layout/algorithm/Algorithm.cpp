@@ -1,0 +1,246 @@
+#include "Algorithm.hpp"
+
+#include "FloatingAlgorithm.hpp"
+#include "TiledAlgorithm.hpp"
+#include "../target/WindowTarget.hpp"
+#include "../space/Space.hpp"
+#include "../../desktop/view/Window.hpp"
+#include "../../desktop/history/WindowHistoryTracker.hpp"
+#include "../../desktop/state/FocusState.hpp"
+#include "../../output/Monitor.hpp"
+#include "../../render/Renderer.hpp"
+
+#include "../../debug/log/Logger.hpp"
+
+using namespace Layout;
+
+SP<CAlgorithm> CAlgorithm::create(UP<ITiledAlgorithm>&& tiled, UP<IFloatingAlgorithm>&& floating, SP<CSpace> space) {
+    auto algo                  = SP<CAlgorithm>(new CAlgorithm(std::move(tiled), std::move(floating), space));
+    algo->m_self               = algo;
+    algo->m_tiled->m_parent    = algo;
+    algo->m_floating->m_parent = algo;
+    return algo;
+}
+
+CAlgorithm::CAlgorithm(UP<ITiledAlgorithm>&& tiled, UP<IFloatingAlgorithm>&& floating, SP<CSpace> space) :
+    m_tiled(std::move(tiled)), m_floating(std::move(floating)), m_space(space) {
+    ;
+}
+
+void CAlgorithm::addTarget(SP<ITarget> target) {
+    const bool SHOULD_FLOAT = target->floating();
+
+    if (SHOULD_FLOAT) {
+        m_floatingTargets.emplace_back(target);
+        m_floating->newTarget(target);
+    } else {
+        m_tiledTargets.emplace_back(target);
+        m_tiled->newTarget(target);
+    }
+}
+
+void CAlgorithm::removeTarget(SP<ITarget> target) {
+    const bool IS_FLOATING = std::ranges::contains(m_floatingTargets, target);
+
+    if (IS_FLOATING) {
+        std::erase(m_floatingTargets, target);
+        m_floating->removeTarget(target);
+        return;
+    }
+
+    const bool IS_TILED = std::ranges::contains(m_tiledTargets, target);
+
+    if (IS_TILED) {
+        std::erase(m_tiledTargets, target);
+        m_tiled->removeTarget(target);
+        return;
+    }
+
+    Log::logger->log(Log::ERR, "BUG THIS: CAlgorithm::removeTarget, but not found");
+}
+
+void CAlgorithm::trackSpatialTiledTarget(SP<ITarget> target) {
+    if (!target || std::ranges::contains(m_tiledTargets, target))
+        return;
+    m_tiledTargets.emplace_back(target);
+}
+
+void CAlgorithm::untrackSpatialTiledTarget(SP<ITarget> target) {
+    std::erase(m_tiledTargets, target);
+}
+
+void CAlgorithm::setFloatingForSpatialTarget(SP<ITarget> target, bool floating) {
+    if (!target || target->floating() == floating)
+        return;
+
+    if (target->floating())
+        std::erase(m_floatingTargets, target);
+    else
+        untrackSpatialTiledTarget(target);
+
+    target->setFloating(floating);
+    if (floating)
+        m_floatingTargets.emplace_back(target);
+    else
+        trackSpatialTiledTarget(target);
+}
+
+void CAlgorithm::moveTarget(SP<ITarget> target, std::optional<Vector2D> focalPoint, bool reposition) {
+    const bool SHOULD_FLOAT = target->floating();
+
+    if (SHOULD_FLOAT) {
+        m_floatingTargets.emplace_back(target);
+        if (reposition)
+            m_floating->newTarget(target);
+        else
+            m_floating->movedTarget(target, focalPoint);
+    } else {
+        m_tiledTargets.emplace_back(target);
+        if (reposition)
+            m_tiled->newTarget(target);
+        else
+            m_tiled->movedTarget(target, focalPoint);
+    }
+}
+
+SP<CSpace> CAlgorithm::space() const {
+    return m_space.lock();
+}
+
+void CAlgorithm::setFloating(SP<ITarget> target, bool floating, bool reposition) {
+    removeTarget(target);
+
+    g_pHyprRenderer->damageWindow(target->window());
+
+    target->setFloating(floating);
+
+    moveTarget(target, std::nullopt, reposition);
+
+    g_pHyprRenderer->damageWindow(target->window());
+}
+
+size_t CAlgorithm::tiledTargets() const {
+    return m_tiledTargets.size();
+}
+
+size_t CAlgorithm::floatingTargets() const {
+    return m_floatingTargets.size();
+}
+
+void CAlgorithm::recalculate(eRecalculateReason reason) {
+    m_tiled->recalculate(reason);
+    m_floating->recalculate(reason);
+}
+
+void CAlgorithm::recalculateFloating(eRecalculateReason reason) {
+    m_floating->recalculate(reason);
+}
+
+void CAlgorithm::recenter(SP<ITarget> t) {
+    if (t->floating())
+        m_floating->recenter(t);
+}
+
+std::optional<Vector2D> CAlgorithm::predictSizeForNewTiledTarget() {
+    return m_tiled->predictSizeForNewTarget();
+}
+
+void CAlgorithm::resizeTarget(const Vector2D& Δ, SP<ITarget> target, eRectCorner corner) {
+    if (target->floating())
+        m_floating->resizeTarget(Δ, target, corner);
+    else
+        m_tiled->resizeTarget(Δ, target, corner);
+}
+
+void CAlgorithm::moveTarget(const Vector2D& Δ, SP<ITarget> target) {
+    if (target->floating())
+        m_floating->moveTarget(Δ, target);
+}
+
+void CAlgorithm::swapTargets(SP<ITarget> a, SP<ITarget> b) {
+    auto swapFirst = [&a, &b](std::vector<WP<ITarget>>& targets) -> bool {
+        auto ia = std::ranges::find(targets, a);
+        auto ib = std::ranges::find(targets, b);
+
+        if (ia != std::ranges::end(targets) && ib != std::ranges::end(targets)) {
+            std::iter_swap(ia, ib);
+            return true;
+        } else if (ia != std::ranges::end(targets))
+            *ia = b;
+        else if (ib != std::ranges::end(targets))
+            *ib = a;
+
+        return false;
+    };
+
+    if (!swapFirst(m_tiledTargets))
+        swapFirst(m_floatingTargets);
+
+    const WP<IModeAlgorithm> algA = a->floating() ? WP<IModeAlgorithm>(m_floating) : WP<IModeAlgorithm>(m_tiled);
+    const WP<IModeAlgorithm> algB = b->floating() ? WP<IModeAlgorithm>(m_floating) : WP<IModeAlgorithm>(m_tiled);
+
+    algA->swapTargets(a, b);
+    if (algA != algB)
+        algB->swapTargets(b, a);
+}
+
+eDirectionalMoveResult CAlgorithm::moveTargetInDirection(SP<ITarget> t, Math::eDirection dir, bool silent) {
+    if (!t)
+        return DIRECTIONAL_MOVE_INVALID_TARGET;
+
+    if (t->floating())
+        return m_floating->moveTargetInDirection(t, dir, silent);
+
+    return m_tiled->moveTargetInDirection(t, dir, silent);
+}
+
+void CAlgorithm::invalidateVacant() {
+    m_tiled->invalidateVacant();
+}
+
+const UP<ITiledAlgorithm>& CAlgorithm::tiledAlgo() const {
+    return m_tiled;
+}
+
+const UP<IFloatingAlgorithm>& CAlgorithm::floatingAlgo() const {
+    return m_floating;
+}
+
+SP<ITarget> CAlgorithm::getNextCandidate(SP<ITarget> old) {
+    static auto FOCUSONCLOSE = CConfigValue<Hyprlang::INT>("input:focus_on_close");
+
+    if (old->floating() || *FOCUSONCLOSE == 2) {
+        // use window history to determine best target
+        for (const auto& w : Desktop::History::windowTracker()->fullHistory() | std::views::reverse) {
+            if (!w->m_workspace || w->m_workspace->m_space != m_space || !w->layoutTarget() || !w->layoutTarget()->space())
+                continue;
+
+            return w->layoutTarget();
+        }
+
+        // no history, fall back
+    } else {
+        // ask the layout
+        const auto CANDIDATE = m_tiled->getNextCandidate(old);
+        if (CANDIDATE)
+            return CANDIDATE;
+
+        // no candidate, fall back
+    }
+
+    // fallback: try to focus anything
+    if (!m_tiledTargets.empty())
+        return m_tiledTargets.back().lock();
+    if (!m_floatingTargets.empty())
+        return m_floatingTargets.back().lock();
+
+    // god damn it, maybe empty?
+    return nullptr;
+}
+
+void CAlgorithm::setTargetGeom(const CBox& box, SP<ITarget> target) {
+    if (!target->floating() || !std::ranges::contains(m_floatingTargets, target))
+        return;
+
+    m_floating->setTargetGeom(box, target);
+}

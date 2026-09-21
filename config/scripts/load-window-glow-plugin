@@ -1,0 +1,26 @@
+#!/bin/sh
+set -eu
+
+data_home=${XDG_DATA_HOME:-"$HOME/.local/share"}
+plugin_link="$data_home/luminophore-shell/plugins/luminophore-window-glow-plugin.so"
+loaded_file="$data_home/luminophore-shell/plugins/luminophore-window-glow-plugin.loaded"
+plugin=$(readlink -f "$plugin_link")
+
+if [ ! -r "$plugin" ]; then
+    printf 'luminophore-window-glow: installed plugin not found: %s\n' "$plugin" >&2
+    exit 0
+fi
+
+if [ "${1:-}" = "--reload" ] && [ -r "$loaded_file" ]; then
+    loaded_plugin=$(sed -n '1p' "$loaded_file")
+    if [ -n "$loaded_plugin" ]; then
+        hyprctl plugin unload "$loaded_plugin" >/dev/null 2>&1 || true
+    fi
+fi
+
+if hyprctl plugin list | grep -Fq 'Plugin LUMINOPHORE Window Glow by louise:'; then
+    exit 0
+fi
+
+hyprctl plugin load "$plugin"
+printf '%s\n' "$plugin" >"$loaded_file"

@@ -1,0 +1,100 @@
+#!/usr/bin/env python3
+"""Build and verify an isolated Shell/native pair; never install or activate it."""
+
+import hashlib
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+
+
+def main():
+    root = Path(__file__).resolve().parent.parent
+    if len(sys.argv) != 2:
+        raise SystemExit("usage: verify-background-scene NEW_CANDIDATE_DIRECTORY")
+    target = Path(sys.argv[1]).resolve()
+    if target == root or root in target.parents or target.exists():
+        raise SystemExit("candidate must be a new directory outside the Shell source")
+    python = os.environ.get("LUMINOPHORE_PROFILE_PYTHON", sys.executable)
+    subprocess.run(
+        [python, "-c", "import cv2, PIL; print('OpenCV', cv2.__version__)"], check=True
+    )
+    shell = target / "shell"
+    shutil.copytree(
+        root,
+        shell,
+        ignore=shutil.ignore_patterns(
+            ".git",
+            "__pycache__",
+            ".ruff_cache",
+            ".pytest_cache",
+            ".rice-*",
+            "luminophore-background-layer",
+            "profile-runtime",
+        ),
+    )
+    shutil.copy2(root.parent / "hyprland.lua", target / "hyprland.lua")
+    logs = target / "logs"
+    logs.mkdir()
+    binary = shell / "luminophore_shell/luminophore-background-layer"
+    with (logs / "native-build.log").open("w") as log:
+        subprocess.run(
+            [str(shell / "scripts/build-background-layer"), str(binary)],
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            check=True,
+        )
+    environment = {
+        **os.environ,
+        "PYTHONPATH": str(shell),
+        "LUMINOPHORE_BACKGROUND_TEST_BINARY": str(binary),
+        "LUMINOPHORE_PROFILE_PYTHON": python,
+    }
+    with (logs / "tests.log").open("w") as log:
+        subprocess.run(
+            [python, "-m", "unittest", "discover", "-s", "tests"],
+            cwd=shell,
+            env=environment,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            check=True,
+        )
+    subprocess.run(
+        [python, "-m", "compileall", "-q", str(shell / "luminophore_shell")], check=True
+    )
+    entries = {}
+    for path in sorted(shell.rglob("*")):
+        if path.is_file() and "__pycache__" not in path.parts:
+            entries[str(path.relative_to(shell))] = hashlib.sha256(
+                path.read_bytes()
+            ).hexdigest()
+    identity = hashlib.sha256(json.dumps(entries, sort_keys=True).encode()).hexdigest()
+    manifest = {
+        "schema": 1,
+        "source_bundle": identity,
+        "context_entrypoint_sha256": hashlib.sha256(
+            (target / "hyprland.lua").read_bytes()
+        ).hexdigest(),
+        "renderer_build": subprocess.check_output(
+            [str(binary), "--version"], text=True
+        ).strip(),
+        "files": entries,
+        "evidence": {
+            "build": "PASS",
+            "tests": "PASS",
+            "offscreen_native_pixels": "PASS",
+            "install": "NOT_RUN",
+            "wayland_dual_output": "NOT_RUN",
+            "visual_acceptance": "EVIDENCE_PENDING",
+        },
+    }
+    (target / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    print(
+        f"CANDIDATE_OK {target}\nSOURCE_BUNDLE {identity}\nINSTALL NOT_RUN\nWAYLAND_VISUAL EVIDENCE_PENDING"
+    )
+
+
+if __name__ == "__main__":
+    main()

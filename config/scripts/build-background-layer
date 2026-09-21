@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+build=$(mktemp -d)
+trap 'rm -rf -- "$build"' EXIT INT TERM
+for entry in "wlr-layer-shell:$root/native/protocols/wlr-layer-shell-unstable-v1.xml" "presentation-time:/usr/share/wayland-protocols/stable/presentation-time/presentation-time.xml" "xdg-shell:/usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml"; do
+ name=${entry%%:*}; source=${entry#*:}
+ wayland-scanner client-header "$source" "$build/$name.h"
+ wayland-scanner private-code "$source" "$build/$name.c"
+done
+identity=$(cat "$root/native/luminophore_background_layer.c" "$root/native/background/"*.[ch] | sha256sum | cut -d' ' -f1)
+cc -std=c11 -O2 -Wall -Wextra -Werror -DBG_BUILD=\""$identity"\" -I"$build" \
+ $(pkg-config --cflags wayland-client wayland-egl egl glesv2 libpng libjpeg json-c) \
+ "$root/native/luminophore_background_layer.c" "$root/native/background/image.c" "$root/native/background/render.c" "$build/wlr-layer-shell.c" "$build/presentation-time.c" "$build/xdg-shell.c" \
+ -o "$build/luminophore-background-layer" $(pkg-config --libs wayland-client wayland-egl egl glesv2 libpng libjpeg json-c) -lm
+output=${1:-"$root/luminophore_shell/luminophore-background-layer"}
+mkdir -p -- "$(dirname -- "$output")"
+cp "$build/luminophore-background-layer" "$output"
+printf '%s\n' "$output"

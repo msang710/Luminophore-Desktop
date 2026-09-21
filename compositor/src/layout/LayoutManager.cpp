@@ -1,0 +1,349 @@
+#include <hyprutils/utils/ScopeGuard.hpp>
+#include "../luminophore/LuminophoreSpatialRuntime.hpp"
+#include "LayoutManager.hpp"
+
+#include "../managers/EventManager.hpp"
+#include "../managers/fullscreen/FullscreenController.hpp"
+#include "space/Space.hpp"
+#include "target/Target.hpp"
+
+#include "../output/Monitor.hpp"
+#include "../Compositor.hpp"
+#include "../state/WorkspaceState.hpp"
+#include "../desktop/state/FocusState.hpp"
+#include "../event/EventBus.hpp"
+
+using namespace Layout;
+
+CLayoutManager::CLayoutManager() = default;
+
+void CLayoutManager::newTarget(SP<ITarget> target, SP<CSpace> space) {
+    // on a new target: remember desired pos for float, if available
+    if (const auto DESIRED_GEOM = target->desiredGeometry(); DESIRED_GEOM)
+        target->rememberFloatingSize(DESIRED_GEOM->size);
+
+    target->assignToSpace(space);
+}
+
+void CLayoutManager::removeTarget(SP<ITarget> target) {
+    target->assignToSpace(nullptr);
+}
+
+void CLayoutManager::changeFloatingMode(SP<ITarget> target) {
+    Luminophore::spatialRuntime()->historyActionBegin();
+    Hyprutils::Utils::CScopeGuard historyAction([] { Luminophore::spatialRuntime()->historyActionEnd(); });
+    if (!target->space())
+        return;
+
+    auto pastFsMode = Fullscreen::FSMODE_NONE;
+    // Reapply fullscreen after changing floating state to update layout properties.
+    if (Fullscreen::controller()->isFullscreen(target->window())) {
+        pastFsMode = Fullscreen::controller()->getFullscreenModes(target->window()).internal;
+        Fullscreen::controller()->setFullscreenMode(target->window(), Fullscreen::FSMODE_NONE);
+    }
+
+    target->space()->toggleTargetFloating(target);
+
+    if (pastFsMode != Fullscreen::FSMODE_NONE)
+        Fullscreen::controller()->setFullscreenMode(target->window(), pastFsMode);
+
+    g_pEventManager->postEvent(SHyprIPCEvent({
+        .event = "changefloatingmode",
+        .data  = std::format("{:x},{}", rc<uintptr_t>(target->window().get()), sc<int>(target->floating())),
+    }));
+    Event::bus()->m_events.window.floating.emit(target->window());
+}
+
+void CLayoutManager::beginDragTarget(SP<ITarget> target, eMouseBindMode mode, std::optional<eRectCorner> forcedEdge, bool exclusiveDeviceGrab) {
+    m_dragStateController->dragBegin(target, mode, forcedEdge, exclusiveDeviceGrab);
+}
+
+void CLayoutManager::moveMouse(const Vector2D& mousePos) {
+    m_dragStateController->mouseMove(mousePos);
+}
+
+void CLayoutManager::resizeTarget(const Vector2D& Δ, SP<ITarget> target, eRectCorner corner) {
+    if (target->isPseudo()) {
+        auto fixedΔ = Δ;
+        if (edgeLeft(corner))
+            fixedΔ.x = -fixedΔ.x;
+        if (edgeTop(corner))
+            fixedΔ.y = -fixedΔ.y;
+
+        auto       newPseudoSize    = target->pseudoSize() + fixedΔ;
+        const auto TARGET_TILE_SIZE = target->position().size();
+        newPseudoSize.x             = std::clamp(newPseudoSize.x, MIN_WINDOW_SIZE, TARGET_TILE_SIZE.x);
+        newPseudoSize.y             = std::clamp(newPseudoSize.y, MIN_WINDOW_SIZE, TARGET_TILE_SIZE.y);
+
+        target->setPseudoSize(newPseudoSize);
+
+        return;
+    }
+
+    target->space()->resizeTarget(Δ, target, corner);
+}
+
+void CLayoutManager::setTargetGeom(const CBox& box, SP<ITarget> target) {
+    if (!target->floating())
+        return;
+
+    target->space()->setTargetGeom(box, target);
+}
+
+void CLayoutManager::moveTarget(const Vector2D& Δ, SP<ITarget> target) {
+    if (!target->floating())
+        return;
+
+    target->space()->moveTarget(Δ, target);
+}
+
+void CLayoutManager::cancelDragTarget() {
+    m_dragStateController->dragEnd(true);
+}
+
+void CLayoutManager::endDragTarget() {
+    m_dragStateController->dragEnd();
+}
+
+void CLayoutManager::switchTargets(SP<ITarget> a, SP<ITarget> b, bool preserveFocus) {
+
+    if (preserveFocus) {
+        a->swap(b);
+        return;
+    }
+
+    const auto IS_A_ACTIVE = Desktop::focusState()->window() == a->window();
+    const auto IS_B_ACTIVE = Desktop::focusState()->window() == b->window();
+
+    a->swap(b);
+
+    if (IS_A_ACTIVE && b->window())
+        Desktop::focusState()->fullWindowFocus(b->window(), Desktop::FOCUS_REASON_KEYBIND);
+
+    if (IS_B_ACTIVE && a->window())
+        Desktop::focusState()->fullWindowFocus(a->window(), Desktop::FOCUS_REASON_KEYBIND);
+}
+
+eDirectionalMoveResult CLayoutManager::moveInDirection(SP<ITarget> target, const std::string& direction, bool silent) {
+    if (!target || direction.empty())
+        return DIRECTIONAL_MOVE_INVALID_TARGET;
+
+    Math::eDirection dir = Math::fromChar(direction.at(0));
+    if (dir == Math::DIRECTION_DEFAULT) {
+        Log::logger->log(Log::ERR, "invalid direction for moveInDirection: {}", direction);
+        return DIRECTIONAL_MOVE_INVALID_TARGET;
+    }
+
+    if (!target->space())
+        return DIRECTIONAL_MOVE_INVALID_TARGET;
+
+    return target->space()->moveTargetInDirection(target, dir, silent);
+}
+
+SP<ITarget> CLayoutManager::getNextCandidate(SP<CSpace> space, SP<ITarget> from) {
+    return space->getNextCandidate(from);
+}
+
+bool CLayoutManager::isReachable(SP<ITarget> target) {
+    return true;
+}
+
+std::optional<Vector2D> CLayoutManager::predictSizeForNewTiledTarget() {
+    const auto FOCUSED_MON = Desktop::focusState()->monitor();
+
+    if (!FOCUSED_MON || !FOCUSED_MON->m_activeWorkspace)
+        return std::nullopt;
+
+    if (FOCUSED_MON->m_activeSpecialWorkspace)
+        return FOCUSED_MON->m_activeSpecialWorkspace->m_space->predictSizeForNewTiledTarget();
+
+    return FOCUSED_MON->m_activeWorkspace->m_space->predictSizeForNewTiledTarget();
+}
+
+const UP<Supplementary::CDragStateController>& CLayoutManager::dragController() {
+    return m_dragStateController;
+}
+
+static inline bool canSnap(const double SIDEA, const double SIDEB, const double GAP) {
+    return std::abs(SIDEA - SIDEB) < GAP;
+}
+
+static void snapMove(double& start, double& end, const double P) {
+    end   = P + (end - start);
+    start = P;
+}
+
+static void snapResize(double& start, double& end, const double P) {
+    start = P;
+}
+
+using SnapFn = std::function<void(double&, double&, const double)>;
+
+void CLayoutManager::performSnap(Vector2D& sourcePos, Vector2D& sourceSize, SP<ITarget> DRAGGINGTARGET, const eMouseBindMode MODE, const int CORNER, const Vector2D& BEGINSIZE) {
+
+    const auto DRAGGINGWINDOW = DRAGGINGTARGET->window();
+
+    if (!Desktop::View::validMapped(DRAGGINGWINDOW))
+        return;
+
+    static auto  SNAPWINDOWGAP     = CConfigValue<Config::INTEGER>("general:snap:window_gap");
+    static auto  SNAPMONITORGAP    = CConfigValue<Config::INTEGER>("general:snap:monitor_gap");
+    static auto  SNAPBORDEROVERLAP = CConfigValue<Config::INTEGER>("general:snap:border_overlap");
+    static auto  SNAPRESPECTGAPS   = CConfigValue<Config::INTEGER>("general:snap:respect_gaps");
+
+    static auto  PGAPSIN  = CConfigValue<Config::IComplexConfigValue>("general:gaps_in");
+    static auto  PGAPSOUT = CConfigValue<Config::IComplexConfigValue>("general:gaps_out");
+    const auto   GAPSNONE = Config::CCssGapData{0, 0, 0, 0};
+
+    const SnapFn SNAP  = (MODE == MBIND_MOVE) ? snapMove : snapResize;
+    int          snaps = 0;
+
+    struct SRange {
+        double start = 0;
+        double end   = 0;
+    };
+    const auto EXTENTS = DRAGGINGWINDOW->getWindowExtentsUnified(Desktop::View::RESERVED_EXTENTS | Desktop::View::INPUT_EXTENTS);
+    SRange     sourceX = {sourcePos.x - EXTENTS.topLeft.x, sourcePos.x + sourceSize.x + EXTENTS.bottomRight.x};
+    SRange     sourceY = {sourcePos.y - EXTENTS.topLeft.y, sourcePos.y + sourceSize.y + EXTENTS.bottomRight.y};
+
+    if (*SNAPWINDOWGAP) {
+        const double GAPSIZE       = *SNAPWINDOWGAP;
+        const auto   WSID          = DRAGGINGWINDOW->workspaceID();
+        const bool   HASFULLSCREEN = DRAGGINGWINDOW->m_workspace && Fullscreen::controller()->hasFullscreen(DRAGGINGWINDOW->m_workspace);
+
+        const auto*  GAPSIN = *SNAPRESPECTGAPS ? sc<Config::CCssGapData*>(PGAPSIN.ptr()) : &GAPSNONE;
+        const double GAPSX  = GAPSIN->m_left + GAPSIN->m_right;
+        const double GAPSY  = GAPSIN->m_top + GAPSIN->m_bottom;
+
+        for (auto& other : Desktop::windowState()->windows()) {
+            if ((HASFULLSCREEN && !other->isAllowedOverFullscreen()) || other == DRAGGINGWINDOW || other->workspaceID() != WSID || !other->m_isMapped ||
+                other->isX11OverrideRedirect())
+                continue;
+
+            const CBox   SURF   = other->getWindowBoxUnified(Desktop::View::RESERVED_EXTENTS);
+            const SRange SURFBX = {SURF.x - GAPSX, SURF.x + SURF.w + GAPSX};
+            const SRange SURFBY = {SURF.y - GAPSY, SURF.y + SURF.h + GAPSY};
+
+            // only snap windows if their ranges overlap in the opposite axis
+            if (sourceY.start <= SURFBY.end && SURFBY.start <= sourceY.end) {
+                if (edgeLeft(CORNER) && canSnap(sourceX.start, SURFBX.end, GAPSIZE)) {
+                    SNAP(sourceX.start, sourceX.end, SURFBX.end);
+                    snaps |= SNAP_LEFT;
+                } else if (edgeRight(CORNER) && canSnap(sourceX.end, SURFBX.start, GAPSIZE)) {
+                    SNAP(sourceX.end, sourceX.start, SURFBX.start);
+                    snaps |= SNAP_RIGHT;
+                }
+            }
+            if (sourceX.start <= SURFBX.end && SURFBX.start <= sourceX.end) {
+                if (edgeTop(CORNER) && canSnap(sourceY.start, SURFBY.end, GAPSIZE)) {
+                    SNAP(sourceY.start, sourceY.end, SURFBY.end);
+                    snaps |= SNAP_UP;
+                } else if (edgeBottom(CORNER) && canSnap(sourceY.end, SURFBY.start, GAPSIZE)) {
+                    SNAP(sourceY.end, sourceY.start, SURFBY.start);
+                    snaps |= SNAP_DOWN;
+                }
+            }
+
+            // corner snapping
+            if (sourceX.start == SURFBX.end || SURFBX.start == sourceX.end) {
+                const SRange SURFY = {SURFBY.start + GAPSY, SURFBY.end - GAPSY};
+                if (edgeTop(CORNER) && !(snaps & SNAP_UP) && canSnap(sourceY.start, SURFY.start, GAPSIZE)) {
+                    SNAP(sourceY.start, sourceY.end, SURFY.start);
+                    snaps |= SNAP_UP;
+                } else if (edgeBottom(CORNER) && !(snaps & SNAP_DOWN) && canSnap(sourceY.end, SURFY.end, GAPSIZE)) {
+                    SNAP(sourceY.end, sourceY.start, SURFY.end);
+                    snaps |= SNAP_DOWN;
+                }
+            }
+            if (sourceY.start == SURFBY.end || SURFBY.start == sourceY.end) {
+                const SRange SURFX = {SURFBX.start + GAPSX, SURFBX.end - GAPSX};
+                if (edgeLeft(CORNER) && !(snaps & SNAP_LEFT) && canSnap(sourceX.start, SURFX.start, GAPSIZE)) {
+                    SNAP(sourceX.start, sourceX.end, SURFX.start);
+                    snaps |= SNAP_LEFT;
+                } else if (edgeRight(CORNER) && !(snaps & SNAP_RIGHT) && canSnap(sourceX.end, SURFX.end, GAPSIZE)) {
+                    SNAP(sourceX.end, sourceX.start, SURFX.end);
+                    snaps |= SNAP_RIGHT;
+                }
+            }
+        }
+    }
+
+    if (*SNAPMONITORGAP) {
+        const double GAPSIZE    = *SNAPMONITORGAP;
+        const auto   EXTENTNONE = SBoxExtents{{0, 0}, {0, 0}};
+        const auto*  EXTENTDIFF = *SNAPBORDEROVERLAP ? &EXTENTS : &EXTENTNONE;
+        const auto   MON        = DRAGGINGWINDOW->m_monitor.lock();
+
+        const auto*  GAPSOUT   = *SNAPRESPECTGAPS ? sc<Config::CCssGapData*>(PGAPSOUT.ptr()) : &GAPSNONE;
+        const auto   WORK_AREA = Desktop::CReservedArea{GAPSOUT->m_top, GAPSOUT->m_right, GAPSOUT->m_bottom, GAPSOUT->m_left}.apply(MON->logicalBoxMinusReserved());
+
+        SRange       monX = {WORK_AREA.x, WORK_AREA.x + WORK_AREA.w};
+        SRange       monY = {WORK_AREA.y, WORK_AREA.y + WORK_AREA.h};
+
+        const bool   HAS_LEFT   = MON->m_reservedArea.left() > 0;
+        const bool   HAS_TOP    = MON->m_reservedArea.top() > 0;
+        const bool   HAS_BOTTOM = MON->m_reservedArea.bottom() > 0;
+        const bool   HAS_RIGHT  = MON->m_reservedArea.right() > 0;
+
+        if (edgeLeft(CORNER) &&
+            ((HAS_LEFT && canSnap(sourceX.start, monX.start, GAPSIZE)) || canSnap(sourceX.start, (monX.start -= MON->m_reservedArea.left() + EXTENTDIFF->topLeft.x), GAPSIZE))) {
+            SNAP(sourceX.start, sourceX.end, monX.start);
+            snaps |= SNAP_LEFT;
+        }
+        if (edgeRight(CORNER) &&
+            ((HAS_RIGHT && canSnap(sourceX.end, monX.end, GAPSIZE)) || canSnap(sourceX.end, (monX.end += MON->m_reservedArea.right() + EXTENTDIFF->bottomRight.x), GAPSIZE))) {
+            SNAP(sourceX.end, sourceX.start, monX.end);
+            snaps |= SNAP_RIGHT;
+        }
+        if (edgeTop(CORNER) &&
+            ((HAS_TOP && canSnap(sourceY.start, monY.start, GAPSIZE)) || canSnap(sourceY.start, (monY.start -= MON->m_reservedArea.top() + EXTENTDIFF->topLeft.y), GAPSIZE))) {
+            SNAP(sourceY.start, sourceY.end, monY.start);
+            snaps |= SNAP_UP;
+        }
+        if (edgeBottom(CORNER) &&
+            ((HAS_BOTTOM && canSnap(sourceY.end, monY.end, GAPSIZE)) || canSnap(sourceY.end, (monY.end += MON->m_reservedArea.bottom() + EXTENTDIFF->bottomRight.y), GAPSIZE))) {
+            SNAP(sourceY.end, sourceY.start, monY.end);
+            snaps |= SNAP_DOWN;
+        }
+    }
+
+    // remove extents from main surface
+    sourceX = {sourceX.start + EXTENTS.topLeft.x, sourceX.end - EXTENTS.bottomRight.x};
+    sourceY = {sourceY.start + EXTENTS.topLeft.y, sourceY.end - EXTENTS.bottomRight.y};
+
+    if (MODE == MBIND_RESIZE_FORCE_RATIO) {
+        if ((edgeLeft(CORNER) && snaps & SNAP_LEFT) || (edgeRight(CORNER) && snaps & SNAP_RIGHT)) {
+            const double SIZEY = (sourceX.end - sourceX.start) * (BEGINSIZE.y / BEGINSIZE.x);
+            if (edgeTop(CORNER))
+                sourceY.start = sourceY.end - SIZEY;
+            else
+                sourceY.end = sourceY.start + SIZEY;
+        } else if ((edgeTop(CORNER) && snaps & SNAP_UP) || (edgeBottom(CORNER) && snaps & SNAP_DOWN)) {
+            const double SIZEX = (sourceY.end - sourceY.start) * (BEGINSIZE.x / BEGINSIZE.y);
+            if (edgeLeft(CORNER))
+                sourceX.start = sourceX.end - SIZEX;
+            else
+                sourceX.end = sourceX.start + SIZEX;
+        }
+    }
+
+    sourcePos  = {sourceX.start, sourceY.start};
+    sourceSize = {sourceX.end - sourceX.start, sourceY.end - sourceY.start};
+}
+
+void CLayoutManager::recalculateMonitor(PHLMONITOR m, eRecalculateMonitorReason reason) {
+    if (m->m_activeSpecialWorkspace)
+        m->m_activeSpecialWorkspace->m_space->recalculate(recalcMonitorReasonToRecalcReason(reason));
+
+    if (m->m_activeWorkspace)
+        m->m_activeWorkspace->m_space->recalculate(recalcMonitorReasonToRecalcReason(reason));
+}
+
+void CLayoutManager::invalidateMonitorGeometries(PHLMONITOR m) {
+    for (const auto& ws : State::workspaceState()->workspaces()) {
+        if (ws && ws->m_monitor == m) {
+            ws->m_space->recheckWorkArea();
+            ws->m_space->recalculate(RECALCULATE_REASON_INVALIDATE_MONITOR_GEOMETRIES);
+        }
+    }
+}

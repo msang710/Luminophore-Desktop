@@ -1,0 +1,11 @@
+[submodule "compositor/subprojects/hyprland-protocols"]
+	path = compositor/subprojects/hyprland-protocols
+	url = https://github.com/hyprwm/hyprland-protocols
+
+[submodule "compositor/subprojects/tracy"]
+	path = compositor/subprojects/tracy
+	url = https://github.com/wolfpld/tracy
+
+[submodule "compositor/subprojects/udis86"]
+	path = compositor/subprojects/udis86
+	url = https://github.com/canihavesomecoffee/udis86

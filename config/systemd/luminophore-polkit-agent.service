@@ -1,0 +1,17 @@
+[Unit]
+Description=Standalone PolicyKit authentication agent for Luminophore Shell session
+PartOf=luminophore-session.target
+
+ConditionPathExists=%t/luminophore/session.env
+
+[Service]
+EnvironmentFile=%t/luminophore/session.env
+ExecCondition=/usr/bin/luminophore-session check
+Type=simple
+ExecCondition=/usr/bin/test -x /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1
+ExecStart=/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1
+Restart=on-failure
+RestartSec=1
+
+[Install]
+WantedBy=luminophore-session.target

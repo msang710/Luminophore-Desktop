@@ -1,0 +1,22 @@
+{
+  "version": 2,
+  "source": "settings-application-separation-D-SA-011-D-SA-013",
+  "targets": [
+    {"id":"gtk3","compiler_output":"gtk3","activation_target":"gtk-3.0/gtk.css","coverage_kind":"direct","verification":"payload digest, import selector, gsettings"},
+    {"id":"gtk4","compiler_output":"gtk4","activation_target":"gtk-4.0/gtk.css","coverage_kind":"direct","verification":"payload digest, import selector, gsettings"},
+    {"id":"qt5","compiler_output":"qt","activation_target":"qt5ct.conf","coverage_kind":"direct","verification":"payload digest and qt5ct selector"},
+    {"id":"qt6","compiler_output":"qt","activation_target":"qt6ct.conf","coverage_kind":"direct","verification":"payload digest and qt6ct selector"},
+    {"id":"kde","compiler_output":"kde","activation_target":"plasma-apply-colorscheme","coverage_kind":"direct","verification":"payload digest and kdeglobals ColorScheme"},
+    {"id":"kitty","compiler_output":"kitty","activation_target":"kitty.conf include","coverage_kind":"direct","verification":"payload digest and include selector"},
+    {"id":"alacritty","compiler_output":"alacritty","activation_target":"alacritty import","coverage_kind":"direct","verification":"payload digest and import selector"},
+    {"id":"btop","compiler_output":"btop","activation_target":"btop color_theme","coverage_kind":"direct","verification":"payload digest and color_theme selector"},
+    {"id":"ghostty","compiler_output":"ghostty","activation_target":"ghostty theme","coverage_kind":"direct","verification":"payload digest and theme selector"},
+    {"id":"hyprland","compiler_output":"semantic-scheme","activation_target":"hyprland-settings-transaction","coverage_kind":"direct","verification":"primary surface_container secondary error semantic tokens"},
+    {"id":"cursor","compiler_output":"semantic-scheme","activation_target":"dual Hyprcursor/XCursor transaction","coverage_kind":"direct","verification":"source inventory, artifact digests, selectors, hyprctl setcursor and rollback"},
+    {"id":"gimp","compiler_output":"gtk3","activation_target":"GTK3 toolkit","coverage_kind":"toolkit-indirect","verification":"new process visual acceptance"},
+    {"id":"libreoffice","compiler_output":"gtk3-or-qt","activation_target":"selected toolkit","coverage_kind":"toolkit-indirect","verification":"active VCL backend and new process visual acceptance"},
+    {"id":"obs","compiler_output":"qt","activation_target":"Qt toolkit","coverage_kind":"toolkit-indirect","verification":"new process visual acceptance"},
+    {"id":"discord","compiler_output":null,"activation_target":null,"coverage_kind":"intentional-drop","verification":"not applicable","reason":"Official Discord exposes no supported custom theme injection API"},
+    {"id":"vscode","compiler_output":null,"activation_target":null,"coverage_kind":"intentional-drop","verification":"not applicable","reason":"Theme activation requires an installed editor extension and reload lifecycle"}
+  ]
+}

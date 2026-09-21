@@ -1,0 +1,152 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+source_root=$(cd -- "$script_dir/../.." && pwd)
+runtime_tool="$source_root/../Luminophore-OS/runtime/luminophore-runtime"
+case "${1:-}" in
+    --follow-build)
+        [[ $# == 7 ]] || { printf 'usage: %s --follow-build SYSROOT SOURCE LOCK LAYOUT BUILD_OUTPUT ASSEMBLY\n' "$0" >&2; exit 2; }
+        [[ -n "${LUMINOPHORE_FOLLOW_TRANSACTION:-}" && -n "${LUMINOPHORE_HOST_DIGEST:-}" ]] || {
+            printf 'follow build requires transaction and host digest\n' >&2; exit 2;
+        }
+        exec /usr/bin/python3 -B "$runtime_tool" build-desktop \
+            --sysroot "$2" --source "$3" --lock "$4" --layout "$5" \
+            --build-output "$6" --output "$7"
+        ;;
+    --pack-release)
+        [[ $# == 4 ]] || { printf 'usage: %s --pack-release SYSROOT RECIPE OUTPUT\n' "$0" >&2; exit 2; }
+        exec /usr/bin/python3 -B "$runtime_tool" pack --sysroot "$2" --recipe "$3" --output "$4"
+        ;;
+    --locked-build)
+        [[ $# == 5 ]] || { printf 'usage: %s --locked-build SYSROOT SOURCE LOCK OUTPUT\n' "$0" >&2; exit 2; }
+        exec /usr/bin/python3 -B "$runtime_tool" build --sysroot "$2" --source "$3" --lock "$4" --output "$5"
+        ;;
+    '') ;;
+    *) printf 'unknown build mode: %s\n' "$1" >&2; exit 2 ;;
+esac
+work_root=${LUMINOPHORE_BUILD_ROOT:-"$source_root/luminophore/.work/release"}
+artifact_root=${LUMINOPHORE_ARTIFACT_ROOT:-"$source_root/luminophore/artifacts"}
+luminophore_effects=${LUMINOPHORE_EFFECTS:-1}
+
+case "$luminophore_effects" in
+    0) luminophore_effects_cmake=OFF ;;
+    1) luminophore_effects_cmake=ON ;;
+    *) printf 'LUMINOPHORE_EFFECTS must be 0 or 1\n' >&2; exit 2 ;;
+esac
+
+"$script_dir/verify-source"
+
+source_status=$(git -C "$source_root" status --porcelain --untracked-files=all)
+if [[ -n "$source_status" && "${LUMINOPHORE_ALLOW_DIRTY:-0}" != "1" ]]; then
+    printf 'source is dirty; commit it or set LUMINOPHORE_ALLOW_DIRTY=1 for a non-release diagnostic build\n' >&2
+    exit 1
+fi
+
+source_commit=$(git -C "$source_root" rev-parse HEAD)
+source_dirty=false
+source_state_sha=
+if [[ -n "$source_status" ]]; then
+    source_dirty=true
+    source_state_sha=$(
+        {
+            git -C "$source_root" diff --binary HEAD
+            while IFS= read -r -d '' untracked; do
+                printf 'untracked:%s\n' "$untracked"
+                sha256sum "$source_root/$untracked"
+            done < <(git -C "$source_root" ls-files --others --exclude-standard -z)
+        } | sha256sum | awk '{print $1}'
+    )
+fi
+upstream_commit=$(jq -er '.commit' "$source_root/luminophore/upstream.lock")
+source_tree=$(git -C "$source_root" rev-parse 'HEAD^{tree}')
+patch_ids=$(git -C "$source_root" rev-list --reverse "$upstream_commit..$source_commit")
+
+cmake -S "$source_root" -B "$work_root" -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DLUMINOPHORE_EFFECTS="$luminophore_effects_cmake"
+cmake --build "$work_root" --target Hyprland hyprctl start-hyprland --parallel "${LUMINOPHORE_BUILD_JOBS:-$(nproc)}"
+
+hyprland_binary="$work_root/Hyprland"
+hyprctl_binary="$work_root/hyprctl/hyprctl"
+watchdog_binary="$work_root/start/start-hyprland"
+for built_binary in "$hyprland_binary" "$hyprctl_binary" "$watchdog_binary"; do
+    test -x "$built_binary"
+done
+
+hyprland_sha=$(sha256sum "$hyprland_binary" | awk '{print $1}')
+hyprctl_sha=$(sha256sum "$hyprctl_binary" | awk '{print $1}')
+watchdog_sha=$(sha256sum "$watchdog_binary" | awk '{print $1}')
+session_sha=$(sha256sum "$source_root/luminophore/scripts/luminophore-compositor-session" | awk '{print $1}')
+canary_sha=$(sha256sum "$source_root/luminophore/scripts/luminophore-hyprland-canary" | awk '{print $1}')
+verifier_sha=$(sha256sum "$source_root/luminophore/scripts/verify-spatial-transition" | awk '{print $1}')
+suite_sha=$(sha256sum "$source_root/luminophore/scripts/run-spatial-canary-suite" | awk '{print $1}')
+generation=$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n' \
+    "$source_commit" "$source_state_sha" "$hyprland_sha" "$hyprctl_sha" "$watchdog_sha" "$session_sha" "$canary_sha" "$verifier_sha" "$suite_sha" \
+    | sha256sum | awk '{print $1}')
+artifact_dir="$artifact_root/$generation"
+staging_dir="$artifact_root/.staging-$generation-$$"
+trap 'rm -rf -- "${staging_dir:-}"' EXIT
+mkdir -p "$staging_dir/bin"
+install -m 755 "$hyprland_binary" "$staging_dir/bin/Hyprland"
+install -m 755 "$hyprctl_binary" "$staging_dir/bin/hyprctl"
+install -m 755 "$watchdog_binary" "$staging_dir/bin/start-hyprland"
+install -m 755 "$source_root/luminophore/scripts/luminophore-hyprland-canary" "$staging_dir/bin/luminophore-hyprland-canary"
+install -m 755 "$source_root/luminophore/scripts/luminophore-compositor-session" "$staging_dir/bin/luminophore-compositor-session"
+install -m 755 "$source_root/luminophore/scripts/verify-spatial-transition" "$staging_dir/bin/verify-spatial-transition"
+install -m 755 "$source_root/luminophore/scripts/run-spatial-canary-suite" "$staging_dir/bin/run-spatial-canary-suite"
+
+patch_json=$(printf '%s\n' "$patch_ids" | jq -Rsc 'split("\n") | map(select(length > 0))')
+dependency_json=$(for package_name in aquamarine hyprlang hyprcursor hyprutils hyprgraphics wayland-server wayland-client; do
+    printf '%s\t%s\n' "$package_name" "$(pkg-config --modversion "$package_name")"
+done | jq -Rn '[inputs | split("\t") | {(.[0]): .[1]}] | add')
+
+runtime_json=$(for entry in "Hyprland:$hyprland_binary" "hyprctl:$hyprctl_binary" "start-hyprland:$watchdog_binary"; do
+    name=${entry%%:*}
+    path=${entry#*:}
+    readelf -d "$path" | awk -v name="$name" '/NEEDED/ {value=$NF; gsub(/^\[/, "", value); gsub(/\]$/, "", value); print name "\t" value}'
+done | jq -Rn 'reduce inputs as $line ({}; ($line | split("\t")) as $parts | .[$parts[0]] += [$parts[1]])')
+
+binaries_json=$(jq -n \
+    --arg hyprland "$hyprland_sha" \
+    --arg hyprctl "$hyprctl_sha" \
+    --arg watchdog "$watchdog_sha" \
+    '{Hyprland:{sha256:$hyprland}, hyprctl:{sha256:$hyprctl}, "start-hyprland":{sha256:$watchdog}}')
+runtime_files_json=$(jq -n \
+    --arg session "$session_sha" \
+    --arg canary "$canary_sha" \
+    --arg verifier "$verifier_sha" \
+    --arg suite "$suite_sha" \
+    '{"luminophore-compositor-session":{sha256:$session}, "luminophore-hyprland-canary":{sha256:$canary}, "verify-spatial-transition":{sha256:$verifier}, "run-spatial-canary-suite":{sha256:$suite}}')
+
+jq -n \
+    --arg product 'LUMINOPHORE Compositor' \
+    --arg upstream "$upstream_commit" \
+    --arg source_commit "$source_commit" \
+    --arg source_tree "$source_tree" \
+    --arg source_state_sha256 "$source_state_sha" \
+    --arg generation "$generation" \
+    --arg compiler "$(c++ --version | head -n 1)" \
+    --arg cmake "$(cmake --version | head -n 1)" \
+    --arg ninja "$(ninja --version)" \
+    --argjson luminophore_effects "$luminophore_effects" \
+    --argjson patches "$patch_json" \
+    --argjson dependencies "$dependency_json" \
+    --argjson binaries "$binaries_json" \
+    --argjson runtime_files "$runtime_files_json" \
+    --argjson source_dirty "$source_dirty" \
+    --argjson runtime_dependencies "$runtime_json" \
+    '{schema:"luminophore-runtime-artifact/v1", product:$product, generation:$generation, build_type:"Release", generator:"Ninja", luminophore_effects:($luminophore_effects == 1), upstream_commit:$upstream, source_commit:$source_commit, source_tree:$source_tree, source_dirty:$source_dirty, source_state_sha256:$source_state_sha256, patch_commits:$patches, binaries:$binaries, runtime_files:$runtime_files, toolchain:{compiler:$compiler, cmake:$cmake, ninja:$ninja}, dependencies:$dependencies, runtime_dependencies:$runtime_dependencies, acceptance:{spatial_contract:"luminophore-spatial-evidence/v2", audit_read_only:true, exercise_opt_in:true}, activation:{live_install:false, default_session_mutation:false}}' \
+    > "$staging_dir/build-manifest.json"
+
+"$staging_dir/bin/luminophore-compositor-session" --verify-staging
+if [[ -e "$artifact_dir" ]]; then
+    "$artifact_dir/bin/luminophore-compositor-session" --verify-only >/dev/null
+    rm -rf -- "$staging_dir"
+else
+    mv -- "$staging_dir" "$artifact_dir"
+fi
+staging_dir=
+"$artifact_dir/bin/luminophore-compositor-session" --verify-only
+printf 'artifact=%s\nmanifest=%s\n' "$artifact_dir/bin/luminophore-compositor-session" "$artifact_dir/build-manifest.json"

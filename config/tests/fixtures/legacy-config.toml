@@ -1,0 +1,130 @@
+[layout]
+edge_margin = 24
+panel_height = 44
+radius = 15
+max_height_ratio = 0.60
+expansion_ms = 200
+weather_width = 560
+weather_height = 124
+system_width = 224
+system_height = 32
+
+[theme]
+backdrop_opacity = 0.3999999999999998
+outline_width = 2
+outline_glow_intensity = 2.3
+outline_glow_radius = 64
+glow_renderer = "layer"
+animate_glow = true
+audio_spectrum_enabled = true
+palette_transition_ms = 594
+body_font = "LINE Seed Sans KR"
+numeric_font = "LINE Seed Sans KR"
+fallback_primary = "#F0DAA1"
+fallback_secondary = "#45678A"
+palette_source = "hyprpaper"
+fixed_primary = "#C01C28"
+fixed_secondary = "#AB9DF2"
+app_icon_theme = "luminophore-shell-arcticons"
+ui_scale = 0.8
+high_contrast = false
+
+[theme.app_icon_aliases]
+"com.visualstudio.code.oss" = "visual-studio-code"
+"org.pulseaudio.pavucontrol" = "pavucontrol"
+
+[theme.fixed_monitor_palettes]
+[compositor]
+gaps_in = 0
+gaps_out = 0
+border_size = 0
+rounding = 14
+active_opacity = 1.0
+inactive_opacity = 1.0
+dim_special = 0.3
+blur_enabled = true
+blur_size = 2
+blur_passes = 2
+vrr = 3
+
+[motion]
+enabled = true
+preset = "balanced"
+speed = 1.0
+
+[appearance]
+wallpaper_provider = "hyprpaper"
+
+[system_theme]
+mode = "dark"
+
+[network]
+offline = false
+
+[location]
+automatic = false
+latitude = 37.566
+longitude = 126.9784
+timezone = "Asia/Seoul"
+geoclue_timeout_seconds = 5.0
+city_search_timeout_seconds = 5.0
+
+[launcher]
+file_root = "~"
+web_url = "https://www.google.com/search?q={query}"
+fixed_apps = ["org.kde.dolphin", "com.shellyorg.shelly.desktop", "paseo-x86_64.desktop", "google-chrome", "steam", "discord.desktop", "com.spotify.Client.desktop", "com.bitwig.BitwigStudio.desktop", "gimp.desktop", "sublime_text.desktop"]
+app_limit = 10
+window_limit = 8
+clipboard_limit = 50
+clipboard_retention_hours = 24
+file_debounce_ms = 120
+shell = "/bin/fish"
+terminal = "/usr/bin/ghostty"
+
+[launcher.preferred_actions]
+
+[taskbar]
+pinned = []
+visible_limit = 8
+hover_delay_ms = 250
+
+[notifications]
+history_limit = 100
+retention_hours = 24
+toast_limit = 3
+default_timeout_ms = 5000
+dot_limit = 3
+dnd_allowlist = []
+
+[weather]
+forecast_days = 28
+cache_hours = 48
+timeout_seconds = 5.0
+
+[metrics]
+sample_seconds = 2.0
+graph_seconds = 60
+pump_warning_rpm = 1500
+pump_danger_rpm = 500
+fan_warning_rpm = 300
+fan_coolant_gate = 40.0
+
+[metrics.cpu]
+warning = 85.0
+danger = 95.0
+
+[metrics.gpu]
+warning = 80.0
+danger = 90.0
+
+[metrics.coolant]
+warning = 45.0
+danger = 50.0
+
+[metrics.nvme_0700]
+warning = 70.0
+danger = 78.0
+
+[metrics.nvme_0100]
+warning = 80.0
+danger = 86.0

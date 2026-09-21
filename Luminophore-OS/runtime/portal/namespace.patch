@@ -1,0 +1,118 @@
+--- a/src/core/PortalManager.cpp
++++ b/src/core/PortalManager.cpp
+@@ -67,7 +67,7 @@
+         Debug::log(WARN, "neither $HOME nor $XDG_CONFIG_HOME is present in env");
+ 
+     std::string path =
+-        (!XDG_CONFIG_HOME && !HOME) ? "/tmp/xdph.conf" : (XDG_CONFIG_HOME ? std::string{XDG_CONFIG_HOME} + "/hypr/xdph.conf" : std::string{HOME} + "/.config/hypr/xdph.conf");
++        (!XDG_CONFIG_HOME && !HOME) ? "/tmp/xdph.conf" : (XDG_CONFIG_HOME ? std::string{XDG_CONFIG_HOME} + "/luminophore/xdph.conf" : std::string{HOME} + "/.config/luminophore/xdph.conf");
+ 
+     m_sConfig.config = std::make_unique<Hyprlang::CConfig>(path.c_str(), Hyprlang::SConfigOptions{.allowMissingConfig = true});
+ 
+@@ -268,7 +268,7 @@
+     m_iPID = getpid();
+ 
+     try {
+-        m_pConnection = sdbus::createSessionBusConnection(sdbus::ServiceName{"org.freedesktop.impl.portal.desktop.hyprland"});
++        m_pConnection = sdbus::createSessionBusConnection(sdbus::ServiceName{"org.freedesktop.impl.portal.desktop.luminophore"});
+     } catch (std::exception& e) {
+         Debug::log(CRIT, "Couldn't create the dbus connection ({})", e.what());
+         exit(1);
+--- a/src/helpers/MiscFunctions.cpp
++++ b/src/helpers/MiscFunctions.cpp
+@@ -27,7 +27,7 @@
+ 
+ void addHyprlandNotification(const std::string& icon, float timeMs, const std::string& color, const std::string& message) {
+     // argv, never /bin/sh -c: `message` can carry untrusted text (e.g. an app_id) a shell would expand
+-    CProcess proc("hyprctl", {"notify", icon, std::format("{}", timeMs), color, message});
++    CProcess proc((std::filesystem::read_symlink("/proc/self/exe").parent_path() / "hyprctl").string(), {"notify", icon, std::format("{}", timeMs), color, message});
+     proc.runAsync();
+ }
+ 
+--- a/src/shared/ScreencopyShared.cpp
++++ b/src/shared/ScreencopyShared.cpp
+@@ -8,6 +8,7 @@
+ #include <sys/mman.h>
+ #include <sys/stat.h>
+ #include <fcntl.h>
++#include <filesystem>
+ 
+ #include <hyprutils/os/Process.hpp>
+ using namespace Hyprutils::OS;
+@@ -44,7 +45,7 @@
+ 
+     const char*         WAYLAND_DISPLAY             = getenv("WAYLAND_DISPLAY");
+     const char*         XCURSOR_SIZE                = getenv("XCURSOR_SIZE");
+-    const char*         HYPRLAND_INSTANCE_SIGNATURE = getenv("HYPRLAND_INSTANCE_SIGNATURE");
++    const char*         LUMINOPHORE_INSTANCE_SIGNATURE = getenv("LUMINOPHORE_INSTANCE_SIGNATURE");
+ 
+     static auto* const* PALLOWTOKENBYDEFAULT =
+         (Hyprlang::INT* const*)g_pPortalManager->m_sConfig.config->getConfigValuePtr("screencopy:allow_token_by_default")->getDataStaticPtr();
+@@ -54,11 +55,11 @@
+     if (**PALLOWTOKENBYDEFAULT)
+         args.emplace_back("--allow-token");
+ 
+-    CProcess proc(std::string{*PCUSTOMPICKER}.empty() ? "hyprland-share-picker" : *PCUSTOMPICKER, args);
++    CProcess proc(std::string{*PCUSTOMPICKER}.empty() ? (std::filesystem::read_symlink("/proc/self/exe").parent_path() / "luminophore-share-picker").string() : *PCUSTOMPICKER, args);
+     proc.addEnv("WAYLAND_DISPLAY", WAYLAND_DISPLAY ? WAYLAND_DISPLAY : "");
+     proc.addEnv("QT_QPA_PLATFORM", "wayland");
+     proc.addEnv("XCURSOR_SIZE", XCURSOR_SIZE ? XCURSOR_SIZE : "24");
+-    proc.addEnv("HYPRLAND_INSTANCE_SIGNATURE", HYPRLAND_INSTANCE_SIGNATURE ? HYPRLAND_INSTANCE_SIGNATURE : "0");
++    proc.addEnv("LUMINOPHORE_INSTANCE_SIGNATURE", LUMINOPHORE_INSTANCE_SIGNATURE ? LUMINOPHORE_INSTANCE_SIGNATURE : "0");
+     proc.addEnv("XDPH_WINDOW_SHARING_LIST", buildWindowList()); // buildWindowList will sanitize any shell stuff in case the picker (qt) does something funky? It shouldn't.
+ 
+     if (!proc.runSync())
+--- a/src/portals/Screenshot.cpp
++++ b/src/portals/Screenshot.cpp
+@@ -121,7 +121,7 @@
+     const auto RUNTIME_DIR = getenv("XDG_RUNTIME_DIR");
+     srand(time(nullptr));
+ 
+-    const std::string                               HYPR_DIR             = RUNTIME_DIR ? std::string{RUNTIME_DIR} + "/hypr/" : "/tmp/hypr/";
++    const std::string                               HYPR_DIR             = RUNTIME_DIR ? std::string{RUNTIME_DIR} + "/luminophore/" : "/tmp/luminophore/";
+     const std::string                               SNAP_FILE            = std::format("xdph_screenshot_{:x}.png", rand()); // rand() is good enough
+     const std::string                               FILE_PATH            = HYPR_DIR + SNAP_FILE;
+     const std::string                               SNAP_CMD             = "grim '" + FILE_PATH + "'";
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -4,7 +4,7 @@
+ #include "core/PortalManager.hpp"
+ 
+ void printHelp() {
+-    std::cout << R"#(┃ xdg-desktop-portal-hyprland
++    std::cout << R"#(┃ xdg-desktop-portal-luminophore
+ ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ┃ -v (--verbose)    → enable trace logging
+ ┃ -q (--quiet)      → disable logging
+@@ -29,7 +29,7 @@
+             printHelp();
+             return 0;
+         } else if (arg == "--version" || arg == "-V") {
+-            std::cout << "xdg-desktop-portal-hyprland v" << XDPH_VERSION << "\n";
++            std::cout << "xdg-desktop-portal-luminophore v" << XDPH_VERSION << "\n";
+             return 0;
+         } else {
+             printHelp();
+--- a/hyprland-share-picker/main.cpp
++++ b/hyprland-share-picker/main.cpp
+@@ -8,6 +8,7 @@
+ #include <QtDebug>
+ #include <QtWidgets>
+ #include <QSettings>
++#include <QStandardPaths>
+ #include <array>
+ #include <cstdio>
+ #include <iostream>
+@@ -94,10 +95,10 @@
+     MainPicker w;
+     mainPickerPtr = &w;
+ 
+-    QSettings* settings = new QSettings("/tmp/hypr/hyprland-share-picker.conf", QSettings::IniFormat);
++    QSettings* settings = new QSettings(QStandardPaths::writableLocation(QStandardPaths::ConfigLocation) + "/luminophore/share-picker.conf", QSettings::IniFormat);
+     w.setGeometry(0, 0, settings->value("width").toInt(), settings->value("height").toInt());
+ 
+-    QCoreApplication::setApplicationName("org.hyprland.xdg-desktop-portal-hyprland");
++    QCoreApplication::setApplicationName("org.luminophore.xdg-desktop-portal-luminophore");
+ 
+     // get the tabwidget
+     const auto TABWIDGET        = w.findChild<QTabWidget*>("tabWidget");

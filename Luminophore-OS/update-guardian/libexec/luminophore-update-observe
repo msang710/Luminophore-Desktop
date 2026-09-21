@@ -1,0 +1,16 @@
+#!/bin/sh
+# Pacman-facing wrapper. The Python recorder may be absent, broken, or unable
+# to write its queue; this PostTransaction hook still always succeeds.
+set +e
+
+follower=${LUMINOPHORE_GUARDIAN_FOLLOWER:-/usr/lib/luminophore-update-guardian/desktop-follow}
+dbpath=${LUMINOPHORE_GUARDIAN_DBPATH:-/var/lib/pacman/local}
+queue=${LUMINOPHORE_GUARDIAN_QUEUE:-/var/lib/luminophore-update-guardian/queue}
+manifest=${LUMINOPHORE_CAPABILITY_MANIFEST:-/usr/share/luminophore/desktop-capabilities.json}
+release_state=${LUMINOPHORE_RELEASE_STATE:-/var/lib/luminophore/state.json}
+max_pending=${LUMINOPHORE_GUARDIAN_MAX_PENDING:-16}
+
+"$follower" observe --dbpath "$dbpath" --queue "$queue" \
+    --manifest "$manifest" --release-state "$release_state" \
+    --max-pending "$max_pending" >/dev/null 2>&1 || :
+exit 0

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Luminophore Settings
+Name[ko]=Luminophore 설정
+Comment=Configure Luminophore Shell
+Exec=@LUMINOPHORE_SETTINGS_EXEC@ settings
+Icon=preferences-system
+Terminal=false
+Categories=Settings;DesktopSettings;
+StartupNotify=true
+StartupWMClass=io.github.msang710.LuminophoreSettings

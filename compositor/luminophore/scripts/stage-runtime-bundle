@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    printf 'usage: %s preflight ARTIFACT_DIR DESTINATION_ROOT | install ARTIFACT_DIR DESTINATION_ROOT | rollback DESTINATION_ROOT\n' "${0##*/}" >&2
+    exit 2
+}
+
+verify_spatial_candidate() {
+    local artifact=$1
+    [[ -d "$artifact" ]] || { printf 'artifact directory is unavailable\n' >&2; exit 1; }
+    local manifest="$artifact/build-manifest.json"
+    [[ $(jq -er '.acceptance.spatial_contract' "$manifest") == "luminophore-spatial-evidence/v2" ]] || {
+        printf 'artifact does not provide luminophore-spatial-evidence/v2\n' >&2
+        exit 1
+    }
+    [[ $(jq -er '.acceptance.audit_read_only' "$manifest") == "true" ]] || {
+        printf 'artifact spatial audit is not read-only\n' >&2
+        exit 1
+    }
+    "$artifact/bin/luminophore-compositor-session" --verify-only >/dev/null
+}
+
+[[ $# -ge 2 ]] || usage
+action=$1
+shift
+
+atomic_link() {
+    local target=$1
+    local link=$2
+    local temporary="${link}.new.$$"
+    ln -s -- "$target" "$temporary"
+    mv -Tf -- "$temporary" "$link"
+}
+
+case "$action" in
+    preflight)
+        [[ $# -eq 2 ]] || usage
+        artifact=$(readlink -f -- "$1")
+        destination=$2
+        verify_spatial_candidate "$artifact"
+        generation=$(jq -er '.generation' "$artifact/build-manifest.json")
+        [[ $(basename -- "$artifact") == "$generation" ]] || { printf 'artifact generation mismatch\n' >&2; exit 1; }
+        current_target=$(readlink -- "$destination/current" 2>/dev/null || true)
+        previous_target=$(readlink -- "$destination/previous" 2>/dev/null || true)
+        [[ -n "$current_target" ]] || { printf 'no current runtime generation is available\n' >&2; exit 1; }
+        "$destination/$current_target/bin/luminophore-compositor-session" --verify-only >/dev/null
+        if [[ -n "$previous_target" ]]; then
+            "$destination/$previous_target/bin/luminophore-compositor-session" --verify-only >/dev/null
+        fi
+        jq -n --arg generation "$generation" --arg current "$current_target" --arg previous "$previous_target" \
+            '{schema:"luminophore-spatial-activation-preflight/v1", candidate:$generation, current:$current, previous:$previous, ready:true}'
+        ;;
+    install)
+        [[ $# -eq 2 ]] || usage
+        artifact=$(readlink -f -- "$1")
+        destination=$2
+        verify_spatial_candidate "$artifact"
+        mkdir -p -- "$destination/generations"
+        exec 9>"$destination/.runtime-bundle.lock"
+        flock -n 9 || { printf 'another runtime bundle transaction is active\n' >&2; exit 1; }
+        generation=$(jq -er '.generation' "$artifact/build-manifest.json")
+        [[ $(basename -- "$artifact") == "$generation" ]] || { printf 'artifact generation mismatch\n' >&2; exit 1; }
+        target="$destination/generations/$generation"
+        if [[ ! -e "$target" ]]; then
+            staging="$destination/generations/.staging-$generation-$$"
+            trap 'rm -rf -- "${staging:-}"' EXIT
+            cp -a -- "$artifact" "$staging"
+            "$staging/bin/luminophore-compositor-session" --verify-staging >/dev/null
+            chmod -R a-w -- "$staging"
+            mv -- "$staging" "$target"
+            staging=
+            sync -f "$destination/generations"
+        else
+            "$target/bin/luminophore-compositor-session" --verify-only >/dev/null
+        fi
+        current_target=$(readlink -- "$destination/current" 2>/dev/null || true)
+        if [[ -n "$current_target" && "$current_target" != "generations/$generation" ]]; then
+            atomic_link "$current_target" "$destination/previous"
+        fi
+        atomic_link "generations/$generation" "$destination/current"
+        printf 'LUMINOPHORE_RUNTIME_SELECTED generation=%s\n' "$generation"
+        ;;
+    rollback)
+        [[ $# -eq 1 ]] || usage
+        destination=$1
+        exec 9>"$destination/.runtime-bundle.lock"
+        flock -n 9 || { printf 'another runtime bundle transaction is active\n' >&2; exit 1; }
+        current_target=$(readlink -- "$destination/current" 2>/dev/null || true)
+        previous_target=$(readlink -- "$destination/previous" 2>/dev/null || true)
+        [[ -n "$current_target" && -n "$previous_target" ]] || { printf 'no previous runtime generation is available\n' >&2; exit 1; }
+        previous_root="$destination/$previous_target"
+        "$previous_root/bin/luminophore-compositor-session" --verify-only >/dev/null
+        atomic_link "$previous_target" "$destination/current"
+        atomic_link "$current_target" "$destination/previous"
+        printf 'LUMINOPHORE_RUNTIME_ROLLED_BACK target=%s\n' "$previous_target"
+        ;;
+    *) usage ;;
+esac

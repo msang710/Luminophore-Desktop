@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+
+project_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+data_home=${XDG_DATA_HOME:-"$HOME/.local/share"}
+plugin_dir="$data_home/luminophore-shell/plugins"
+plugin_link="$plugin_dir/luminophore-window-glow-plugin.so"
+build_dir=$(mktemp -d)
+trap 'rm -rf -- "$build_dir"' EXIT HUP INT TERM
+
+"$project_root/scripts/build-window-glow-plugin" "$build_dir/luminophore-window-glow-plugin.so" >/dev/null
+plugin_hash=$(sha256sum "$build_dir/luminophore-window-glow-plugin.so" | cut -c1-16)
+plugin_target="$plugin_dir/luminophore-window-glow-plugin-$plugin_hash.so"
+install -d -m 755 "$plugin_dir"
+if [ ! -r "$plugin_target" ]; then
+    install -m 755 "$build_dir/luminophore-window-glow-plugin.so" "$plugin_target"
+fi
+ln -sfn "$(basename "$plugin_target")" "$plugin_link"
+printf '%s\n' "$plugin_target"

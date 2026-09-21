@@ -1,0 +1,6 @@
+[terminal]
+vt = 1
+
+[default_session]
+command = "/usr/lib/luminophore/luminophore-greeter-session"
+user = "greeter"

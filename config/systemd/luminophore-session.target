@@ -1,0 +1,9 @@
+[Unit]
+Description=Independent services for the Luminophore Shell desktop session
+Wants=luminophore-shell.service luminophore-spotify.service luminophore-polkit-agent.service luminophore-portal.service
+Wants=luminophore-input-method.service luminophore-wallpaper.service
+Wants=luminophore-idle-lock.service luminophore-secret-service.service
+Wants=xdg-desktop-autostart.target
+Before=xdg-desktop-autostart.target
+ConditionPathExists=%t/luminophore/session.env
+StopWhenUnneeded=no

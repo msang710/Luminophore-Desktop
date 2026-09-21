@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "primary_connector": "auto",
+  "colors": {
+    "primary": "#78DCE8",
+    "secondary": "#AB9DF2",
+    "surface": "#0A0D12",
+    "on_surface": "#F3F7FA"
+  },
+  "placement": {
+    "center_from_right": [2, 3],
+    "center_from_top": [2, 3]
+  },
+  "layout": {
+    "entry_width": 360,
+    "control_size": 48,
+    "spacing": 10,
+    "radius": 12,
+    "glow_intensity": 2.3,
+    "glow_radius": 64,
+    "outline_width": 5,
+    "palette_transition_ms": 594,
+    "expansion_ms": 200,
+    "backdrop_opacity": 0.4
+  }
+}

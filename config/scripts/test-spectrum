@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+project_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+binary=$(mktemp)
+trap 'rm -f -- "$binary"' EXIT INT TERM
+cc -std=c11 -O2 -Wall -Wextra -Werror -D_DEFAULT_SOURCE \
+    -I"$project_root/native" \
+    "$project_root/native/luminophore_spectrum.c" \
+    "$project_root/native/test_luminophore_spectrum.c" \
+    -o "$binary" -lm
+"$binary"

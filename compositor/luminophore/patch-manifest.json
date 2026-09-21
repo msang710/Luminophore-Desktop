@@ -1,0 +1,17 @@
+{
+  "schema": "luminophore-patch-manifest/v1",
+  "upstream_commit": "efb50993780079460b0cbed1363e2166a2de1d9f",
+  "series": [
+    {
+      "feature_id": "NC-PR1",
+      "title": "Reproducible fork substrate",
+      "expected_anchors": [
+        "CMakeLists.txt:project(Hyprland)",
+        "CMakeLists.txt:add_executable(Hyprland)",
+        "src/main.cpp:--version"
+      ],
+      "commit_ids": []
+    }
+  ],
+  "note": "commit_ids are populated in each immutable artifact build manifest; this source manifest avoids self-referential commit hashes"
+}

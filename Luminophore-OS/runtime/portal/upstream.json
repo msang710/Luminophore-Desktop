@@ -1,0 +1,328 @@
+{
+  "commit": "cc8e5ef8fb2acef3db488b9a33b0c48c2a4ee204",
+  "files": {
+    ".builds/alpine.yml": {
+      "executable": false,
+      "sha256": "152e854ba8495cdbdba903fce78dfe49b33118efe486ea1812ed18c64384ffe8"
+    },
+    ".builds/archlinux.yml": {
+      "executable": false,
+      "sha256": "d35c62200a663c1964e0858c23e8e8898913a743f8d485d2ccb7bab4a67cedbe"
+    },
+    ".builds/freebsd.yml": {
+      "executable": false,
+      "sha256": "15a0bb9ae88fe5a13c1b1daea257e89d4dd7e83fdc7fe4c7fe8cf8004a8926b4"
+    },
+    ".clang-format": {
+      "executable": false,
+      "sha256": "e26fb6230666b3e478be217eb85ce030b946b6247482939613025d684ee10f59"
+    },
+    ".editorconfig": {
+      "executable": false,
+      "sha256": "66a25c79fc73159726a3eeec8ff4d9b0e3b35507828abb529b4ec6b790f36638"
+    },
+    ".github/workflows/nix-build.yaml": {
+      "executable": false,
+      "sha256": "367240be3a00628cb79a9014ca02736ea99ee59700681d558b67a841436232dc"
+    },
+    ".gitignore": {
+      "executable": false,
+      "sha256": "6ac7ac474368382fa3bd1851037088c6b70a5cbc5a781713a974e93b2d47f615"
+    },
+    ".gitmodules": {
+      "executable": false,
+      "sha256": "f6526fa236b37fa40977b710c636423a3b0e11386ff7c632f4ed5459c5a74cc5"
+    },
+    "AGENTS.md": {
+      "executable": false,
+      "sha256": "c92fbcf24b2636a54d55b4fc270edee030f266a41c131bd62f96e6fd6fcd5b3b"
+    },
+    "CMakeLists.txt": {
+      "executable": false,
+      "sha256": "1077004f0590efc74b3086db020125793d15dab73886fd63983bf5f0c12c7027"
+    },
+    "CONTRIBUTING.md": {
+      "executable": false,
+      "sha256": "3ac8160acdf90211ba4e1df3f4d2f1f535921b4dcbbc627ecd5a04fe6c3b1e72"
+    },
+    "LICENSE": {
+      "executable": false,
+      "sha256": "91dd54e73712ac66eeddd06f0c79325d9e38a57eabe89430c6495ec064a9be23"
+    },
+    "README.md": {
+      "executable": false,
+      "sha256": "edc2563002c38099d31ec10697721da6456db0aad62fb3a5cfa050b112a29df6"
+    },
+    "VERSION": {
+      "executable": false,
+      "sha256": "7d072b48526b023950e4c48db01e8c273554a6401119f5691e7589ba9bc65d9d"
+    },
+    "contrib/config.sample": {
+      "executable": false,
+      "sha256": "3c4b118576474c9944bab79a843d55bf0e4a7454cfe9fb48f67150c1e5e6dcc9"
+    },
+    "contrib/systemd/xdg-desktop-portal-hyprland.service.in": {
+      "executable": false,
+      "sha256": "ba6b2c223f6d674ac7b04d42b25af818ac0df8ab58fa424023d14b51f9f00db2"
+    },
+    "flake.lock": {
+      "executable": false,
+      "sha256": "76ff338aae680be7836f6763dd01f020da3abf45be5040462890e65f387ef08a"
+    },
+    "flake.nix": {
+      "executable": false,
+      "sha256": "a3ad6d5963210811d382c77757022f177842fd3206d11389e57489857e467cd1"
+    },
+    "hyprland-share-picker/CMakeLists.txt": {
+      "executable": false,
+      "sha256": "5f75dec5233cf465d29c1bf23a8d0d63d5e4fdab80c83c63f16045253f84d83c"
+    },
+    "hyprland-share-picker/Makefile": {
+      "executable": false,
+      "sha256": "2d03e9088e56a20c4ff41ff888879f890bb7c3af9ce672889ebd59ed667828a0"
+    },
+    "hyprland-share-picker/elidedbutton.cpp": {
+      "executable": false,
+      "sha256": "5da0d7f5327a516af57b72854a83d1d47a8259344a46e937f500db1c9d94914f"
+    },
+    "hyprland-share-picker/elidedbutton.h": {
+      "executable": false,
+      "sha256": "6ac35bc38a5d8a6c6bdf24112ab8ceacadc3b875a4f372ab749e66e15a307250"
+    },
+    "hyprland-share-picker/main.cpp": {
+      "executable": false,
+      "sha256": "dc655545d3de698a7f3efa427d03a0b270584bac76e6964cb665bf4b6bef5a03"
+    },
+    "hyprland-share-picker/mainpicker.cpp": {
+      "executable": false,
+      "sha256": "a5b61b9586b850ff135eaba40288bd6b0d7656edc0765882eff73c68d959e003"
+    },
+    "hyprland-share-picker/mainpicker.h": {
+      "executable": false,
+      "sha256": "17bd4a16cfa578676dbcbf75380755852be2de63d31fcd0fe1d19fc735c444a7"
+    },
+    "hyprland-share-picker/mainpicker.ui": {
+      "executable": false,
+      "sha256": "bf0356dc7325c8433df3216e46e7c9301b2b854b1f16fd92ea1195c5215034f0"
+    },
+    "hyprland-share-picker/meson.build": {
+      "executable": false,
+      "sha256": "542f24018c6216835b80c161ed4b757051f8471693ffad5ac017f882b46cab56"
+    },
+    "hyprland.portal": {
+      "executable": false,
+      "sha256": "43b2fe354c2d4cc51bd237be8b6586cc6b6f5681451a4079adf2a97909d73431"
+    },
+    "meson.build": {
+      "executable": false,
+      "sha256": "d0f56322b8cf6718608de6707dca754c3eb0fc30d58f471bf33240511df3bf68"
+    },
+    "meson_options.txt": {
+      "executable": false,
+      "sha256": "94f0db9e7a42bac3490d91d736fcd427f986d6a2dc5fff25fbfa24f5c5b79ba8"
+    },
+    "nix/default.nix": {
+      "executable": false,
+      "sha256": "824589dc03cdf4ba7b738e330ead5262967e91214915a3284c59f558bac63325"
+    },
+    "nix/overlays.nix": {
+      "executable": false,
+      "sha256": "67d9aa47d2d91aa00f30b60bee1ad81c291cf290ee3e597383c418d5a90425eb"
+    },
+    "org.freedesktop.impl.portal.desktop.hyprland.service.in": {
+      "executable": false,
+      "sha256": "0e3b4ffcff6b6e626974309165aa782ac996274eb03f446422fcd8df8561b2e0"
+    },
+    "protocols/meson.build": {
+      "executable": false,
+      "sha256": "505ad7cbf67dbbe41c237786cd9fc6056e7b7e0ed85163a74a95b062d0b8e125"
+    },
+    "protocols/wlr-foreign-toplevel-management-unstable-v1.xml": {
+      "executable": false,
+      "sha256": "4ecc4588858e29fe680a33521e1f22bcf22071d66d1553fe96b4ddec03d591d2"
+    },
+    "protocols/wlr-screencopy-unstable-v1.xml": {
+      "executable": false,
+      "sha256": "618f309a6a0cd6481565dd2a82120f13ebacac7047ad846765759868cec2fdfb"
+    },
+    "src/core/PortalManager.cpp": {
+      "executable": false,
+      "sha256": "15c3e39cea5af1a92924ebc1ffe0f7825c86ac3c0b49e894aede86b2e091ea55"
+    },
+    "src/core/PortalManager.hpp": {
+      "executable": false,
+      "sha256": "a673442f3401201e7043cc734e5a7fc416c79f958810a5798a5256ed738576e2"
+    },
+    "src/dbusDefines.hpp": {
+      "executable": false,
+      "sha256": "3fc96585f95597269202961d14a006886bfadbc8573e844ce68169841d8396b8"
+    },
+    "src/helpers/Log.cpp": {
+      "executable": false,
+      "sha256": "f5273eae763ad404b1efa32e992e552516a73e92d043ed67cd262249b23da863"
+    },
+    "src/helpers/Log.hpp": {
+      "executable": false,
+      "sha256": "133a86aa44f47833ca5bf2a440e807fe4a4a4f82276466cb89aeb0d7915febdb"
+    },
+    "src/helpers/MiscFunctions.cpp": {
+      "executable": false,
+      "sha256": "3f2bae82e4289723ad1ed69fa9f5d1c8f8e17cbe747425cfde720c68248ae810"
+    },
+    "src/helpers/MiscFunctions.hpp": {
+      "executable": false,
+      "sha256": "a3b77872436fcf4663287be4172406639c0e2dcc9e110991425cbae42375f4ff"
+    },
+    "src/helpers/Timer.cpp": {
+      "executable": false,
+      "sha256": "c6eea3ab6b92ec21d5b5b9d43c9ca5879a976acc60cc7b4d7924c6098f5db152"
+    },
+    "src/helpers/Timer.hpp": {
+      "executable": false,
+      "sha256": "d523c12545247783cc09f3cd71080b6eac32c6481e1288132285182d2087a9b2"
+    },
+    "src/includes.hpp": {
+      "executable": false,
+      "sha256": "7324dea43cfa8ff4abe0c4d012f3050751ec166843112c6817ca7f6653be64f6"
+    },
+    "src/main.cpp": {
+      "executable": false,
+      "sha256": "fb64436d34fa96413648249ab8650031e02d05c90ff7e265b640fabf7d11aab4"
+    },
+    "src/meson.build": {
+      "executable": false,
+      "sha256": "e8e6cb264cbf92c6fe570ccfa3c997c174cd851e6e5ea6e793facffdb0234f31"
+    },
+    "src/portals/GlobalShortcuts.cpp": {
+      "executable": false,
+      "sha256": "2319b695e274ea4612a1bf91046b5ec1ae30d2bdd1d5d13495b81f1a1e04752e"
+    },
+    "src/portals/GlobalShortcuts.hpp": {
+      "executable": false,
+      "sha256": "d9dfb23865f1f12006abf173b82b1da1d898393973879e330ca4bf5d7683484b"
+    },
+    "src/portals/InputCapture.cpp": {
+      "executable": false,
+      "sha256": "d7135f9c075dc4bacfad5f7d32a0870a185eb3dd1958655322ee2042cbb9abfd"
+    },
+    "src/portals/InputCapture.hpp": {
+      "executable": false,
+      "sha256": "7a02597fc39817fd256c79a19566187cc505574321cd0f0ecf4aad0ee4a189c8"
+    },
+    "src/portals/Screencopy.cpp": {
+      "executable": false,
+      "sha256": "40067d6244cd478259a75cb74d1cbac53c41177b374c33bedd0e375dacc8186c"
+    },
+    "src/portals/Screencopy.hpp": {
+      "executable": false,
+      "sha256": "ac163d9d75a36d8d9ea7b1e472d4c259366558a155dc7d33fe2e148d88a43f9a"
+    },
+    "src/portals/Screenshot.cpp": {
+      "executable": false,
+      "sha256": "b889fe715e2ba0acb676bd9cb23d874595dec085850b0a8f737c1daff49e8385"
+    },
+    "src/portals/Screenshot.hpp": {
+      "executable": false,
+      "sha256": "918c44e676d147f019f58fca1adc24b9c5ecda9f9c244662a0dc81ebb55e89d2"
+    },
+    "src/shared/ScreencopyShared.cpp": {
+      "executable": false,
+      "sha256": "51e152393df07ccab5b9d9afabcb20d0b471cc79bc5223ab9e88b2d4fe83f87e"
+    },
+    "src/shared/ScreencopyShared.hpp": {
+      "executable": false,
+      "sha256": "4d1e24f5254282dc46833ca4a7979775de946847c005535d7b987399a13fa011"
+    },
+    "src/shared/Session.cpp": {
+      "executable": false,
+      "sha256": "2bbc1d2267e5d23232bac2be12edabd9b20999c534cf349488fb1d20f76b2487"
+    },
+    "src/shared/Session.hpp": {
+      "executable": false,
+      "sha256": "ac85b8579fd7ca30e28f6cb7bb002beda04fec0f33475143571c0ff87a242d4a"
+    },
+    "src/shared/ToplevelManager.cpp": {
+      "executable": false,
+      "sha256": "9497cca24011cad49fcea643368706f3cdc31ab76aa537b06434fe057c0fa547"
+    },
+    "src/shared/ToplevelManager.hpp": {
+      "executable": false,
+      "sha256": "538164321bbf2c80489fe5dc7e5ec11d040f5f0f2795cfcbecdf5d19c9e2ea16"
+    },
+    "src/shared/ToplevelMappingManager.cpp": {
+      "executable": false,
+      "sha256": "fde8270a0a65574686c3b628956c3bed985b0d4115de65a2c56803d56f2b1f44"
+    },
+    "src/shared/ToplevelMappingManager.hpp": {
+      "executable": false,
+      "sha256": "d888a2e8836b995f50d8e00a84b2c94a6a1c1f03ee05fe9c879da862c8b5ad1b"
+    },
+    "subprojects/hyprland-protocols/LICENSE": {
+      "executable": false,
+      "sha256": "ea36a60a50dfa150ca3c5816cb6b0ad5b559da380e9f5b2babd4abbf7962a35a"
+    },
+    "subprojects/hyprland-protocols/README.md": {
+      "executable": false,
+      "sha256": "5583c3506c164f4ff675f1d8dbff6ebd0577af30e393ce3c6abc46e02a0c896c"
+    },
+    "subprojects/hyprland-protocols/VERSION": {
+      "executable": false,
+      "sha256": "967d9afb101346667166f2e76e81910bc190488d7d41d50ca0072e9d92f00e32"
+    },
+    "subprojects/hyprland-protocols/flake.lock": {
+      "executable": false,
+      "sha256": "30b8990510cd1927e33fc520997decf45615cb54aa5e085efd2cceb8d617279b"
+    },
+    "subprojects/hyprland-protocols/flake.nix": {
+      "executable": false,
+      "sha256": "ebe3da560d4c784306b54ea33616a3dce626217094f85aaa66a6473d90f0c5e0"
+    },
+    "subprojects/hyprland-protocols/hyprland-protocols.pc.in": {
+      "executable": false,
+      "sha256": "840208d3d99616a485bc480eef41ebef2eba72e01943224e03005e0852eaadcd"
+    },
+    "subprojects/hyprland-protocols/meson.build": {
+      "executable": false,
+      "sha256": "04b85b8862c768293f3b994237d0979a3f1d8be3b13034e143018c425268e25d"
+    },
+    "subprojects/hyprland-protocols/nix/default.nix": {
+      "executable": false,
+      "sha256": "f138b35d344222f42c541bf6c56d25e54d2362fa0331468098cc8fb6981d14f2"
+    },
+    "subprojects/hyprland-protocols/protocols/hyprland-ctm-control-v1.xml": {
+      "executable": false,
+      "sha256": "7e1bef7a2a935c05a7fb65d1bf98c2434037d869276248c926b56ea80a8bd2f4"
+    },
+    "subprojects/hyprland-protocols/protocols/hyprland-focus-grab-v1.xml": {
+      "executable": false,
+      "sha256": "0bc60c14d27f9079e0d1d9d706f91e67ad7da585f3b7f34ff7186a376c0285b4"
+    },
+    "subprojects/hyprland-protocols/protocols/hyprland-global-shortcuts-v1.xml": {
+      "executable": false,
+      "sha256": "00a2f728602c160cdaf67a5be61d1a503fcc0d95323456dbb2a6fa83b299d915"
+    },
+    "subprojects/hyprland-protocols/protocols/hyprland-input-capture-v1.xml": {
+      "executable": false,
+      "sha256": "db926b157b7453e81776706419814c0b194af149bc69fb280fcf9f875165b0c1"
+    },
+    "subprojects/hyprland-protocols/protocols/hyprland-lock-notify-v1.xml": {
+      "executable": false,
+      "sha256": "360589bc58a0a82768b477564f429dc4a8c016ae8311efad12e03f249ac704fc"
+    },
+    "subprojects/hyprland-protocols/protocols/hyprland-surface-v1.xml": {
+      "executable": false,
+      "sha256": "d1c37cf912b71696344d825ca85e948cb7a0406d86b6836d07ff0e8a7670c497"
+    },
+    "subprojects/hyprland-protocols/protocols/hyprland-toplevel-export-v1.xml": {
+      "executable": false,
+      "sha256": "2b8e16da22df333494b616a2c83394dcc9aac04405da535126d68106786441ad"
+    },
+    "subprojects/hyprland-protocols/protocols/hyprland-toplevel-mapping-v1.xml": {
+      "executable": false,
+      "sha256": "05464521a13c96ed274a8545d84ac03980d94b32bd55a8467c7949ed1a1ee96e"
+    }
+  },
+  "protocols_commit": "bd153e76f751f150a09328dbdeb5e4fab9d23622",
+  "repository": "https://github.com/hyprwm/xdg-desktop-portal-hyprland",
+  "version": "1.4.1"
+}

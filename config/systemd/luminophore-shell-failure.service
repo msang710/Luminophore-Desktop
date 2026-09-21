@@ -1,0 +1,6 @@
+[Unit]
+Description=Report repeated luminophore-shell failure
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemd-cat -t luminophore-shell /usr/bin/printf "luminophore-shell 반복 실패: 자동 재시작이 중단되었습니다.\n"

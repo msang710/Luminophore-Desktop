@@ -1,0 +1,208 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+hyprctl_bin=${LUMINOPHORE_HYPRCTL:-hyprctl}
+before=$($hyprctl_bin -j luminophorespatialstate2)
+validate='
+    def positive_box: .width > 0 and .height > 0;
+    def zero_box: .width == 0 and .height == 0;
+    def contains($outer; $inner):
+        $inner.x >= $outer.x and $inner.y >= $outer.y and
+        ($inner.x + $inner.width) <= ($outer.x + $outer.width) and
+        ($inner.y + $inner.height) <= ($outer.y + $outer.height);
+    def logical_contains($view; $window):
+        $window.x >= $view.x and $window.y >= $view.y and
+        $window.x < ($view.x + $view.columns) and
+        $window.y < ($view.y + $view.rows);
+    def logical_overlaps($lhs; $rhs):
+        $lhs.x < ($rhs.x + $rhs.columns) and $rhs.x < ($lhs.x + $lhs.columns) and
+        $lhs.y < ($rhs.y + $rhs.rows) and $rhs.y < ($lhs.y + $lhs.rows);
+    def union_box($boxes):
+        ($boxes | map(.x) | min) as $left |
+        ($boxes | map(.y) | min) as $top |
+        ($boxes | map(.x + .width) | max) as $right |
+        ($boxes | map(.y + .height) | max) as $bottom |
+        {x:$left, y:$top, width:($right - $left), height:($bottom - $top)};
+    . as $root |
+    ($root.active | type == "boolean") and
+    ($root.committed == true) and
+    ($root.revision | type == "number") and
+    ($root.topologyRevision | type == "number") and
+    ($root.committedRevision.model == $root.revision) and
+    ($root.committedRevision.topology == $root.topologyRevision) and
+    ($root.extent.columns >= 1 and $root.extent.rows >= 1) and
+    ($root.view.columns >= 1 and $root.view.rows >= 1) and
+    ($root.view.x >= 0 and $root.view.y >= 0) and
+    ($root.view.x + $root.view.columns <= $root.extent.columns) and
+    ($root.view.y + $root.view.rows <= $root.extent.rows) and
+    ($root.presentationMode == "normal" or $root.presentationMode == "wide" or $root.presentationMode == "desktop") and
+    (($root.outputViews | type) == "array") and
+    (($root.outputViews | length) == ($root.outputs | length)) and
+    (($root.outputViews | map(.output) | sort) == ($root.outputs | map(.id) | sort)) and
+    all($root.outputViews[];
+        .columns >= 1 and .rows >= 1 and .x >= 0 and .y >= 0 and
+        .x + .columns <= $root.extent.columns and .y + .rows <= $root.extent.rows and
+        (. as $view | .anchorKey == null or any($root.windows[]; .address == $view.anchorKey and .mode == "tiled" and logical_contains($view; .)))
+    ) and
+    ($root.outputViews as $views |
+        all(range(0; $views | length); . as $i |
+            all(range($i + 1; $views | length); . as $j | logical_overlaps($views[$i]; $views[$j]) | not))) and
+    ($root.focusedKey == null or any($root.windows[]; .address == $root.focusedKey and .mode == "tiled")) and
+    (if $root.presentationMode == "wide" then
+        ($root.wideKey | type) == "string" and
+        any($root.windows[]; .address == $root.wideKey and .visible and (.fragments | length) == ($root.outputs | length)) and
+        all($root.windows[]; .address == $root.wideKey or (.visible | not))
+     elif $root.presentationMode == "desktop" then
+        all($root.windows[]; (.visible | not) and (.fragments | length) == 0) and
+        ($root.wideKey == null or any($root.windows[]; .address == $root.wideKey and .mode == "tiled"))
+     else
+        $root.wideKey == null and all($root.windows[]; (.visible | not) or .mode == "floating" or (.fragments | length) == 1)
+     end) and
+    (($root.outputs | type) == "array") and
+    ($root.outputs | length >= 1) and
+    (all($root.outputs[];
+        (.id | type == "number") and .id > 0 and
+        (.name | type == "string") and (.name | length) > 0 and
+        (.box | positive_box) and
+        (.scaleMilli | type == "number") and .scaleMilli > 0 and
+        (.transform | type == "number")
+    )) and
+    (($root.outputs | map(.id) | unique | length) == ($root.outputs | length)) and
+    (($root.outputs | map(.name) | unique | length) == ($root.outputs | length)) and
+    all($root.windows[];
+        . as $window |
+        (.mode == "tiled" or .mode == "floating") and
+        (.x >= 0 and .x < $root.extent.columns) and
+        (.y >= 0 and .y < $root.extent.rows) and
+        ((.fragments | type) == "array") and
+        (if .visible then
+            (.box | positive_box) and
+            (.fragments | length > 0) and
+            ((.fragments | map(.output) | unique | length) == (.fragments | length)) and
+            (if $window.mode == "floating" then all(.fragments[]; contains($window.box; .box)) else union_box([.fragments[].box]) == $window.box end) and
+            any(.fragments[]; .output == $window.primaryOutput) and
+            all(.fragments[]; . as $fragment |
+                ($fragment.x == $window.x and $fragment.y == $window.y) and
+                ($fragment.box | positive_box) and
+                any($root.outputs[]; .id == $fragment.output and
+                    (if $window.mode == "floating" then true else contains(.box; $fragment.box) end))
+            )
+         else
+            (.box | zero_box) and (.primaryOutput == 0) and (.fragments | length == 0)
+         end)
+    )
+'
+validate_v2='
+    def positive_box: .width > 0 and .height > 0;
+    def contains($a; $b): $b.x >= $a.x and $b.y >= $a.y and ($b.x+$b.width) <= ($a.x+$a.width) and ($b.y+$b.height) <= ($a.y+$a.height);
+    def overlaps($a; $b): $a.x < ($b.x+$b.width) and $b.x < ($a.x+$a.width) and $a.y < ($b.y+$b.height) and $b.y < ($a.y+$a.height);
+    . as $s |
+    .active == true and .committed == true and
+    .committedRevision.model == .revision and .committedRevision.topology == .topologyRevision and
+    (.presentationMode == "normal" or .presentationMode == "wide" or .presentationMode == "desktop") and
+    ([.outputs[].id] | sort) == ([.outputViews[].output] | sort) and
+    ([.outputViews[].board] | unique | length) == (.outputViews | length) and
+    all(.outputViews[]; .board > 0 and .columns > 0 and .rows > 0) and
+    ([.windows[] | select(.mode == "tiled") | [.board,.x,.y]] | unique | length) == ([.windows[] | select(.mode == "tiled")] | length) and
+    all(.windows[]; . as $w | .board > 0 and (.mode == "tiled" or .mode == "floating") and
+        (if .visible then
+            (.box | positive_box) and (.fragments | length) > 0 and
+            any(.fragments[]; .output == $w.primaryOutput) and
+            all(.fragments[]; . as $f | (.box | positive_box) and contains($w.box;.box) and any($s.outputs[]; .id == $f.output)) and
+            (.fragments as $f | all(range(0; $f|length); . as $i | all(range($i+1; $f|length); . as $j | ($f[$i].output != $f[$j].output) or (overlaps($f[$i].box;$f[$j].box)|not))))
+         else .primaryOutput == 0 and (.fragments|length) == 0 and .box.width == 0 and .box.height == 0 end)) and
+    (if .presentationMode == "desktop" then all(.windows[]; .visible|not)
+     elif .presentationMode == "wide" then
+        ([.windows[] | select(.address == $s.wideKey and .visible)][0]) as $wide |
+        $wide != null and all(.windows[]; .address == $s.wideKey or (.visible|not) or ([.fragments[].output] as $ids | all($wide.fragments[]; .output as $id | ($ids|index($id)) == null)))
+     else .wideKey == null and all(.windows[]; (.visible|not) or ([.fragments[].output]|unique|length) == 1) end)
+'
+validate="if (.protocolVersion // 1) == 2 then ($validate_v2) elif (.protocolVersion // 1) == 1 then ($validate) else false end"
+jq -e "$validate" <<<"$before" >/dev/null
+
+if [[ -n "${LUMINOPHORE_EXPECT_OUTPUTS:-}" ]]; then
+    jq -e --argjson expected "$LUMINOPHORE_EXPECT_OUTPUTS" '.outputs | length == $expected' <<<"$before" >/dev/null
+fi
+if [[ -n "${LUMINOPHORE_EXPECT_VIEW:-}" ]]; then
+    expected_columns=${LUMINOPHORE_EXPECT_VIEW%x*}
+    expected_rows=${LUMINOPHORE_EXPECT_VIEW#*x}
+    [[ "$expected_columns" =~ ^[1-9][0-9]*$ && "$expected_rows" =~ ^[1-9][0-9]*$ ]] || {
+        echo "LUMINOPHORE_EXPECT_VIEW must be formatted as CxR" >&2
+        exit 2
+    }
+    jq -e --argjson columns "$expected_columns" --argjson rows "$expected_rows" \
+        '.view.columns == $columns and .view.rows == $rows' <<<"$before" >/dev/null
+fi
+if [[ -n "${LUMINOPHORE_EXPECT_PRESENTATION:-}" ]]; then
+    [[ "$LUMINOPHORE_EXPECT_PRESENTATION" == "normal" || "$LUMINOPHORE_EXPECT_PRESENTATION" == "wide" || "$LUMINOPHORE_EXPECT_PRESENTATION" == "desktop" ]] || {
+        echo "LUMINOPHORE_EXPECT_PRESENTATION must be normal, wide or desktop" >&2
+        exit 2
+    }
+    jq -e --arg expected "$LUMINOPHORE_EXPECT_PRESENTATION" '.presentationMode == $expected' <<<"$before" >/dev/null
+fi
+if [[ -n "${LUMINOPHORE_EXPECT_OUTPUT_VIEWS:-}" ]]; then
+    jq -e . <<<"$LUMINOPHORE_EXPECT_OUTPUT_VIEWS" >/dev/null || {
+        echo "LUMINOPHORE_EXPECT_OUTPUT_VIEWS must be a JSON object keyed by connector" >&2
+        exit 2
+    }
+    jq -e --argjson expected "$LUMINOPHORE_EXPECT_OUTPUT_VIEWS" '
+        . as $root |
+        ($expected | type) == "object" and
+        (($root.outputs | map({key:.name, value:.id}) | from_entries) as $ids |
+            (($expected | keys | sort) == ($root.outputs | map(.name) | sort)) and
+            all($expected | to_entries[];
+                . as $entry |
+                ($ids[$entry.key] // null) as $id |
+                $id != null and
+                any($root.outputViews[];
+                    .output == $id and
+                    .x == $entry.value.x and .y == $entry.value.y and
+                    .columns == $entry.value.columns and .rows == $entry.value.rows)))
+    ' <<<"$before" >/dev/null
+fi
+
+if (( $# == 0 )); then
+    jq '{active, committed, revision, topologyRevision, committedRevision, extent, view,
+         presentationMode, wideKey, focusedKey, outputViews, outputs, windows}' <<<"$before"
+    exit 0
+fi
+
+if (( $# == 1 )) && [[ "$1" == "wide-toggle" ]]; then
+    $hyprctl_bin dispatch 'hl.dsp.luminophore.wide_toggle()' >/dev/null
+    after=$($hyprctl_bin -j luminophorespatialstate2)
+    jq -e "$validate" <<<"$after" >/dev/null
+    jq -n --argjson before "$before" --argjson after "$after" '{before:$before, after:$after, changed:($after.revision > $before.revision), committed:$after.committed}'
+    exit 0
+fi
+
+if (( $# != 2 )); then
+    echo "usage: ${0##*/} [wide-toggle | view-move|view-adjust|window-move left|right|up|down]" >&2
+    exit 2
+fi
+
+case "$1" in
+    view-move) action=view_move ;;
+    view-adjust) action=view_adjust ;;
+    window-move) action=board_move ;;
+    *) echo "unknown spatial action: $1" >&2; exit 2 ;;
+esac
+case "$2" in
+    left|right|up|down) direction=$2 ;;
+    *) echo "unknown direction: $2" >&2; exit 2 ;;
+esac
+
+$hyprctl_bin dispatch "hl.dsp.luminophore.${action}({ direction = \"${direction}\" })" >/dev/null
+after=$($hyprctl_bin -j luminophorespatialstate2)
+jq -e "$validate" <<<"$after" >/dev/null
+jq -e -n --argjson before "$before" --argjson after "$after" '
+    ($after.revision >= $before.revision) and
+    ($after.topologyRevision >= $before.topologyRevision) and
+    (if $after.revision > $before.revision or $after.topologyRevision > $before.topologyRevision
+     then $after.committedRevision.model == $after.revision and $after.committedRevision.topology == $after.topologyRevision
+     else true end)
+' >/dev/null
+jq -n --argjson before "$before" --argjson after "$after" '
+    {before:$before, after:$after,
+     changed:($after.revision > $before.revision or $after.topologyRevision > $before.topologyRevision),
+     committed:($after.committedRevision.model == $after.revision and $after.committedRevision.topology == $after.topologyRevision)}
+'

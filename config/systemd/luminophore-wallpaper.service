@@ -1,0 +1,16 @@
+[Unit]
+Description=Luminophore configured wallpaper provider
+PartOf=luminophore-session.target
+ConditionPathExists=%t/luminophore/session.env
+ConditionPathExists=%h/.config/luminophore/hyprpaper.conf
+ConditionPathExists=!%h/.local/state/luminophore-shell/background-state.json
+
+[Service]
+EnvironmentFile=%t/luminophore/session.env
+ExecCondition=/usr/bin/luminophore-session check
+ExecStart=/usr/bin/hyprpaper -c %h/.config/luminophore/hyprpaper.conf
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=luminophore-session.target

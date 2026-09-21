@@ -1,0 +1,13 @@
+[Unit]
+Description=Luminophore session lock surface
+PartOf=luminophore-session.target
+After=luminophore-session.target
+ConditionPathExists=%t/luminophore/session.env
+
+[Service]
+EnvironmentFile=%t/luminophore/session.env
+ExecCondition=/usr/bin/luminophore-session check
+ExecCondition=/usr/bin/test -x /usr/bin/gtklock
+ExecStart=/usr/bin/gtklock -c /usr/share/luminophore/gtklock.ini
+Restart=no
+TimeoutStopSec=3

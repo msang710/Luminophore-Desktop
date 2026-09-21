@@ -1,0 +1,29 @@
+#!/bin/sh
+set -eu
+
+project_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+config_home=${XDG_CONFIG_HOME:-"$HOME/.config"}
+user_unit_dir="$config_home/systemd/user"
+data_home=${XDG_DATA_HOME:-"$HOME/.local/share"}
+applications_dir="$data_home/applications"
+
+"$project_root/scripts/build-glow-layer"
+"$project_root/scripts/install-window-glow-plugin"
+
+install -d -m 700 "$user_unit_dir"
+install -d -m 755 "$applications_dir"
+cc -O2 -Wall -Wextra -Werror -o "$project_root/luminophore-dragctl" "$project_root/luminophore-dragctl.c"
+chmod 755 "$project_root/luminophore-dragctl"
+install -m 644 "$project_root/systemd/luminophore-shell.service" "$user_unit_dir/luminophore-shell.service"
+install -m 644 "$project_root/systemd/luminophore-shell-failure.service" "$user_unit_dir/luminophore-shell-failure.service"
+install -m 644 "$project_root/systemd/luminophore-spotify.service" "$user_unit_dir/luminophore-spotify.service"
+desktop_source="$project_root/desktop/io.github.msang710.LuminophoreSettings.desktop"
+desktop_target="$applications_dir/io.github.msang710.LuminophoreSettings.desktop"
+desktop_temporary=$(mktemp)
+trap 'rm -f "$desktop_temporary"' EXIT HUP INT TERM
+sed "s|@LUMINOPHORE_SETTINGS_EXEC@|$project_root/luminophore-shell|" "$desktop_source" >"$desktop_temporary"
+install -m 644 "$desktop_temporary" "$desktop_target"
+
+systemctl --user daemon-reload
+systemctl --user enable --now luminophore-shell.service luminophore-spotify.service
+"$project_root/luminophore-shell" validate-config

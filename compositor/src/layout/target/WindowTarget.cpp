@@ -1,0 +1,403 @@
+#include "WindowTarget.hpp"
+
+#include "../space/Space.hpp"
+#include "../algorithm/Algorithm.hpp"
+
+#include "../../protocols/core/Compositor.hpp"
+#include "../../config/shared/workspace/WorkspaceRuleManager.hpp"
+#include "../../output/Monitor.hpp"
+#include "../../xwayland/XSurface.hpp"
+#include "../../Compositor.hpp"
+#include "../../render/Renderer.hpp"
+#include "../../desktop/state/FloatState.hpp"
+#include "../../state/MonitorState.hpp"
+#include "../../desktop/Workspace.hpp"
+#include "../../managers/fullscreen/FullscreenController.hpp"
+#include "../../luminophore/LuminophoreSpatialCommitter.hpp"
+#include "../../luminophore/LuminophoreSpatialRuntime.hpp"
+#include "../../debug/log/Logger.hpp"
+
+#include <hyprutils/utils/ScopeGuard.hpp>
+
+using namespace Hyprutils::Utils;
+using namespace Layout;
+
+SP<ITarget> CWindowTarget::create(PHLWINDOW w) {
+    auto target    = SP<CWindowTarget>(new CWindowTarget(w));
+    target->m_self = target;
+    return target;
+}
+
+CWindowTarget::CWindowTarget(PHLWINDOW w) : m_window(w) {
+    ;
+}
+
+eTargetType CWindowTarget::type() {
+    return TARGET_TYPE_WINDOW;
+}
+
+void CWindowTarget::setPositionGlobal(const STargetBox& box, uint8_t flags) {
+    if (m_space && m_space->usesLuminophoreSpatialGeometry() && m_window && !CLuminophoreSpatialCommitter::isApplying()) {
+        if (floating() && Luminophore::spatialRuntime()->managesFloatingTarget(m_self.lock())) {
+            if (Fullscreen::controller()->isFullscreen(m_window.lock())) {
+                Log::logger->log(Log::DEBUG, "Blocked protocol fullscreen geometry write for LUMINOPHORE spatial floating target {}", m_window.lock());
+                return;
+            }
+            if (!Luminophore::spatialRuntime()->updateFloatingMotion(m_self.lock(), box.logicalBox)) {
+                Luminophore::spatialRuntime()->setFloatingGeometry(m_self.lock(), box.logicalBox);
+                return;
+            }
+        }
+        if (!floating() && Luminophore::spatialRuntime()->managesTiledTarget(m_self.lock())) {
+            Log::logger->log(Log::ERR, "Blocked non-committer geometry write for LUMINOPHORE spatial target {}", m_window.lock());
+            return;
+        }
+    }
+
+    const bool captureHistory = Luminophore::spatialRuntime()->captureGeometryHistory(m_self.lock());
+    if (captureHistory)
+        Luminophore::spatialRuntime()->historyActionBegin();
+    CScopeGuard history([captureHistory] {
+        if (captureHistory)
+            Luminophore::spatialRuntime()->historyActionEnd();
+    });
+    ITarget::setPositionGlobal(box, flags);
+
+    updatePos(flags);
+}
+
+void CWindowTarget::updatePos(uint8_t flags) {
+
+    if (!m_window)
+        return;
+
+    g_pHyprRenderer->damageWindow(m_window.lock());
+    CScopeGuard x([this] { g_pHyprRenderer->damageWindow(m_window.lock()); });
+
+    const bool  CONFIGURECLIENT = !(flags & TARGET_UPDATE_NO_CLIENT_CONFIGURE);
+
+    if (!m_space || !m_space->workspace())
+        return;
+
+    const auto PMONITOR         = m_space->workspace()->m_monitor;
+    const auto PWORKSPACE       = m_space->workspace();
+    const auto MONITOR_WORKAREA = m_space->workArea();
+
+    // get specific gaps and rules for this workspace,
+    // if user specified them in config
+    const auto WORKSPACERULE = Config::workspaceRuleMgr()->getWorkspaceRuleFor(PWORKSPACE);
+
+    if (!validMapped(m_window)) {
+        if (m_window)
+            g_layoutManager->removeTarget(m_window->layoutTarget());
+        return;
+    }
+
+    // Non-FS Floating Windows
+    if (floating() && m_window && !Fullscreen::controller()->isFullscreen(m_window.lock())) {
+        m_window->setBox(m_box.logicalBox);
+
+        if (CONFIGURECLIENT)
+            m_window->sendWindowSize();
+        m_window->updateWindowDecos();
+
+        return;
+    }
+
+    if (CLuminophoreSpatialCommitter::isApplying() && Luminophore::spatialRuntime()->isBoardRoot(m_window.lock())) {
+        m_window->setBox(m_box.logicalBox);
+        if (CONFIGURECLIENT)
+            m_window->sendWindowSize();
+        m_window->updateWindowDecos();
+        return;
+    }
+
+    /* FS Handling */
+
+    // prevent re-setting an FS window's pos after it is set by the FS calls
+    if (m_window && Fullscreen::controller()->isFullscreen(m_window.lock(), std::nullopt, true)) {
+        if (!Fullscreen::controller()->m_windowPosSettingQueued)
+            return;
+        Fullscreen::controller()->m_windowPosSettingQueued = false;
+    }
+
+    // Default Handled FS (floating or tiling)
+    if (const auto FSMODES = Fullscreen::controller()->getFullscreenModes(m_window.lock());
+        FSMODES.internal != Fullscreen::FSMODE_NONE && !Fullscreen::controller()->layoutManagedFS(m_self->window())) {
+
+        m_window->setBox(m_box.logicalBox);
+
+        m_window->updateWindowDecos();
+        if (CONFIGURECLIENT)
+            m_window->sendWindowSize();
+        return;
+    }
+
+    // Layout handled FS
+    if (const auto FSMODES = Fullscreen::controller()->getFullscreenModes(m_window.lock());
+        FSMODES.internal != Fullscreen::FSMODE_NONE && Fullscreen::controller()->layoutManagedFS(m_self->window())) {
+
+        CBox nodeBox   = m_box.logicalBox;
+        CBox visualBox = m_box.visualBox.empty() ? nodeBox : m_box.visualBox;
+        nodeBox.round();
+        visualBox.round();
+        m_window->setBox(visualBox);
+
+        m_window->updateWindowDecos();
+        if (CONFIGURECLIENT)
+            m_window->sendWindowSize();
+        return;
+    }
+
+    /* Non-Fs Tiled Windows */
+
+    g_pHyprRenderer->damageWindow(window());
+
+    CBox nodeBox = m_box.logicalBox;
+    nodeBox.round();
+
+    auto calcPos  = m_box.visualBox.pos();
+    auto calcSize = m_box.visualBox.size();
+
+    if (m_box.visualBox.empty()) {
+        calcPos  = nodeBox.pos();
+        calcSize = nodeBox.size();
+        // for gaps outer
+        const bool  DISPLAYLEFT   = STICKS(m_box.logicalBox.x, MONITOR_WORKAREA.x);
+        const bool  DISPLAYRIGHT  = STICKS(m_box.logicalBox.x + m_box.logicalBox.w, MONITOR_WORKAREA.x + MONITOR_WORKAREA.w);
+        const bool  DISPLAYTOP    = STICKS(m_box.logicalBox.y, MONITOR_WORKAREA.y);
+        const bool  DISPLAYBOTTOM = STICKS(m_box.logicalBox.y + m_box.logicalBox.h, MONITOR_WORKAREA.y + MONITOR_WORKAREA.h);
+
+        static auto PGAPSINDATA = CConfigValue<Config::IComplexConfigValue>("general:gaps_in");
+        auto* const PGAPSIN     = sc<Config::CCssGapData*>((PGAPSINDATA.ptr()));
+        auto        gapsIn      = (WORKSPACERULE && WORKSPACERULE->m_gapsIn.has_value()) ? WORKSPACERULE->m_gapsIn.value() : *PGAPSIN;
+
+        const auto  GAPOFFSETTOPLEFT = Vector2D(sc<double>(DISPLAYLEFT ? 0 : gapsIn.m_left), sc<double>(DISPLAYTOP ? 0 : gapsIn.m_top));
+
+        const auto  GAPOFFSETBOTTOMRIGHT = Vector2D(sc<double>(DISPLAYRIGHT ? 0 : gapsIn.m_right), sc<double>(DISPLAYBOTTOM ? 0 : gapsIn.m_bottom));
+
+        calcPos  = calcPos + GAPOFFSETTOPLEFT;
+        calcSize = calcSize - GAPOFFSETTOPLEFT - GAPOFFSETBOTTOMRIGHT;
+    }
+
+    if (isPseudo() && m_window && !Fullscreen::controller()->isFullscreen(m_window.lock())) {
+        // Calculate pseudo
+        float scale = 1;
+
+        // adjust if doesn't fit
+        if (m_pseudoSize.x > calcSize.x || m_pseudoSize.y > calcSize.y) {
+            if (m_pseudoSize.x > calcSize.x)
+                scale = calcSize.x / m_pseudoSize.x;
+
+            if (m_pseudoSize.y * scale > calcSize.y)
+                scale = calcSize.y / m_pseudoSize.y;
+
+            auto DELTA = calcSize - m_pseudoSize * scale;
+            calcSize   = m_pseudoSize * scale;
+            calcPos    = calcPos + DELTA / 2.f; // center
+        } else {
+            auto DELTA = calcSize - m_pseudoSize;
+            calcPos    = calcPos + DELTA / 2.f; // center
+            calcSize   = m_pseudoSize;
+        }
+    }
+
+    const auto RESERVED = m_window->getFullWindowReservedArea();
+    calcPos             = calcPos + RESERVED.topLeft;
+    calcSize            = calcSize - (RESERVED.topLeft + RESERVED.bottomRight);
+
+    Vector2D    availableSpace = calcSize;
+
+    static auto PCLAMP_TILED = CConfigValue<Config::INTEGER>("misc:size_limits_tiled");
+
+    if (*PCLAMP_TILED) {
+        Vector2D minSize = m_window->m_ruleApplicator->minSize().valueOr(Vector2D{MIN_WINDOW_SIZE, MIN_WINDOW_SIZE});
+        Vector2D maxSize =
+            Fullscreen::controller()->isFullscreen(m_window.lock()) ? Vector2D{INFINITY, INFINITY} : m_window->m_ruleApplicator->maxSize().valueOr(Vector2D{INFINITY, INFINITY});
+        calcSize = calcSize.clamp(minSize, maxSize);
+
+        calcPos += (availableSpace - calcSize) / 2.0;
+
+        calcPos.x = std::clamp(calcPos.x, MONITOR_WORKAREA.x, std::max(MONITOR_WORKAREA.x, MONITOR_WORKAREA.x + MONITOR_WORKAREA.w - calcSize.x));
+        calcPos.y = std::clamp(calcPos.y, MONITOR_WORKAREA.y, std::max(MONITOR_WORKAREA.y, MONITOR_WORKAREA.y + MONITOR_WORKAREA.h - calcSize.y));
+    }
+
+    CBox wb = {calcPos, calcSize};
+    wb.round(); // avoid rounding mess
+    m_window->setBox(wb);
+
+    m_window->updateWindowDecos();
+    if (CONFIGURECLIENT)
+        m_window->sendWindowSize();
+}
+
+void CWindowTarget::assignToSpace(const SP<CSpace>& space, std::optional<Vector2D> focalPoint) {
+    if (!space) {
+        ITarget::assignToSpace(space, focalPoint);
+        return;
+    }
+
+    m_window->m_layoutFlags = {};
+
+    // keep the ref here so that moveToWorkspace doesn't unref the workspace
+    // and assignToSpace doesn't think this is a new target because space wp is dead
+    const auto WSREF = space->workspace();
+
+    m_window->m_monitor = space->workspace()->m_monitor;
+    m_window->moveToWorkspace(space->workspace());
+
+    // layout and various update fns want the target to already have m_workspace set
+    ITarget::assignToSpace(space, focalPoint);
+
+    m_window->updateToplevel();
+    m_window->updateWindowDecos();
+}
+
+bool CWindowTarget::floating() {
+    return m_window->m_isFloating;
+}
+
+void CWindowTarget::setFloating(bool x) {
+    if (x == m_window->m_isFloating)
+        return;
+
+    m_window->m_layoutFlags = {};
+
+    m_window->m_isFloating = x;
+    m_window->m_pinned     = false;
+
+    m_window->m_ruleApplicator->propertiesChanged(Desktop::Rule::RULE_PROP_FLOATING);
+}
+
+Vector2D CWindowTarget::clampSizeForDesired(const Vector2D& size) const {
+    Vector2D newSize = size;
+    if (const auto m = m_window->minSize(); m)
+        newSize = newSize.clamp(*m);
+    if (const auto m = m_window->maxSize(); m)
+        newSize = newSize.clamp(Vector2D{MIN_WINDOW_SIZE, MIN_WINDOW_SIZE}, *m);
+    return newSize;
+}
+
+std::expected<SGeometryRequested, eGeometryFailure> CWindowTarget::desiredGeometry() {
+
+    SGeometryRequested requested;
+
+    CBox               DESIRED_GEOM = g_pXWaylandManager->getGeometryForWindow(m_window.lock());
+    const auto         PMONITOR     = m_window->m_monitor.lock();
+
+    requested.size = clampSizeForDesired(DESIRED_GEOM.size());
+
+    if (m_window->m_isX11) {
+        Vector2D xy    = {DESIRED_GEOM.x, DESIRED_GEOM.y};
+        xy             = g_pXWaylandManager->xwaylandToWaylandCoords(xy);
+        requested.pos  = xy;
+        DESIRED_GEOM.x = xy.x;
+        DESIRED_GEOM.y = xy.y;
+    }
+
+    const auto STOREDSIZE = m_window->m_ruleApplicator->persistentSize().valueOrDefault() ? Desktop::floatState()->get(m_window.lock()) : std::nullopt;
+
+    if (STOREDSIZE)
+        requested.size = clampSizeForDesired(*STOREDSIZE);
+
+    if (!PMONITOR) {
+        Log::logger->log(Log::ERR, "{:m} has an invalid monitor in desiredGeometry!", m_window.lock());
+        return std::unexpected(GEOMETRY_NO_DESIRED);
+    }
+
+    static auto PXWLFORCESCALEZERO = CConfigValue<Config::INTEGER>("xwayland:force_zero_scaling");
+    const auto  toLogical          = [&](SGeometryRequested& req) {
+        if (m_window->m_isX11 && *PXWLFORCESCALEZERO && PMONITOR)
+            req.size /= PMONITOR->m_scale;
+    };
+
+    if (DESIRED_GEOM.width <= 2 || DESIRED_GEOM.height <= 2) {
+        const auto SURFACE = m_window->wlSurface()->resource();
+
+        if (SURFACE->m_current.size.x > 5 && SURFACE->m_current.size.y > 5) {
+            // center on mon and call it a day
+            requested.pos.reset();
+            requested.size = clampSizeForDesired(SURFACE->m_current.size);
+            toLogical(requested);
+            return requested;
+        }
+
+        if (m_window->m_isX11 && m_window->isX11OverrideRedirect()) {
+            // check OR windows, they like their shit
+            const auto SIZE = clampSizeForDesired(m_window->m_xwaylandSurface->m_geometry.w > 0 && m_window->m_xwaylandSurface->m_geometry.h > 0 ?
+                                                      m_window->m_xwaylandSurface->m_geometry.size() :
+                                                      Vector2D{600, 400});
+
+            if (m_window->m_xwaylandSurface->m_geometry.x != 0 && m_window->m_xwaylandSurface->m_geometry.y != 0) {
+                requested.size = SIZE;
+                requested.pos  = g_pXWaylandManager->xwaylandToWaylandCoords(m_window->m_xwaylandSurface->m_geometry.pos());
+                toLogical(requested);
+                return requested;
+            }
+        }
+
+        return std::unexpected(m_window->m_isX11 && m_window->isX11OverrideRedirect() ? GEOMETRY_INVALID_DESIRED : GEOMETRY_NO_DESIRED);
+    }
+
+    // TODO: detect a popup in a more consistent way.
+    if ((DESIRED_GEOM.x == 0 && DESIRED_GEOM.y == 0) || !m_window->m_isX11) {
+        // middle of parent if available
+        if (!m_window->m_isX11) {
+            if (const auto PARENT = m_window->parent(); PARENT) {
+                const auto POS =
+                    PARENT->position(Desktop::View::IGeometric::GEOMETRIC_GOAL) + PARENT->size(Desktop::View::IGeometric::GEOMETRIC_GOAL) / 2.F - DESIRED_GEOM.size() / 2.F;
+                requested.pos = POS;
+            }
+        }
+    } else {
+        // if it is, we respect where it wants to put itself, but apply monitor offset if outside
+        // most of these are popups
+
+        Vector2D pos;
+
+        if (const auto POPENMON = State::monitorState()->query().vec(DESIRED_GEOM.middle()).run(); POPENMON->m_id != PMONITOR->m_id)
+            pos = Vector2D(DESIRED_GEOM.x, DESIRED_GEOM.y) - POPENMON->m_position + PMONITOR->m_position;
+        else
+            pos = Vector2D(DESIRED_GEOM.x, DESIRED_GEOM.y);
+
+        requested.pos = pos;
+    }
+
+    if (DESIRED_GEOM.w <= 2 || DESIRED_GEOM.h <= 2)
+        return std::unexpected(GEOMETRY_NO_DESIRED);
+
+    toLogical(requested);
+    return requested;
+}
+
+PHLWINDOW CWindowTarget::window() const {
+    return m_window.lock();
+}
+
+std::optional<Vector2D> CWindowTarget::minSize() {
+    return m_window->minSize();
+}
+
+std::optional<Vector2D> CWindowTarget::maxSize() {
+    return m_window->maxSize();
+}
+
+void CWindowTarget::damageEntire() {
+    g_pHyprRenderer->damageWindow(m_window.lock());
+}
+
+void CWindowTarget::warpPositionSize() {
+    m_window->finishAnimation();
+    m_window->updateWindowDecos();
+}
+
+void CWindowTarget::onUpdateSpace() {
+    if (!space())
+        return;
+
+    m_window->m_monitor = space()->workspace()->m_monitor;
+    m_window->moveToWorkspace(space()->workspace());
+    m_window->updateToplevel();
+    m_window->updateWindowData();
+    m_window->updateWindowDecos();
+}

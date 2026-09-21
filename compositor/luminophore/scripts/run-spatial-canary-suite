@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_path=$(readlink -f -- "$0")
+bin_dir=$(cd -- "$(dirname -- "$script_path")" && pwd)
+generation_root=$(cd -- "$bin_dir/.." && pwd)
+manifest=${LUMINOPHORE_MANIFEST:-"$generation_root/build-manifest.json"}
+hyprctl_bin=${LUMINOPHORE_HYPRCTL:-"$bin_dir/hyprctl"}
+verifier=${LUMINOPHORE_SPATIAL_VERIFIER:-"$bin_dir/verify-spatial-transition"}
+
+fail() {
+    printf 'LUMINOPHORE spatial canary suite: %s\n' "$1" >&2
+    exit 1
+}
+
+[[ -r "$manifest" ]] || fail "missing build manifest"
+[[ -x "$hyprctl_bin" ]] || fail "missing colocated hyprctl"
+[[ -x "$verifier" ]] || fail "missing spatial verifier"
+generation=$(jq -er '.generation' "$manifest") || fail "invalid generation"
+
+emit() {
+    local mode=$1
+    local step=$2
+    jq -c --arg generation "$generation" --arg mode "$mode" --arg step "$step" \
+        '. + {schema:"luminophore-spatial-evidence/v2", generation:$generation, mode:$mode, step:$step}'
+}
+
+if (( $# == 0 )) || [[ "$1" == "--audit" ]]; then
+    (( $# <= 1 )) || fail "--audit accepts no actions"
+    LUMINOPHORE_HYPRCTL="$hyprctl_bin" "$verifier" | emit audit snapshot
+    exit 0
+fi
+
+[[ "$1" == "--exercise" ]] || fail "usage: ${0##*/} [--audit | --exercise]"
+[[ "${LUMINOPHORE_CANARY_EXERCISE:-0}" == "1" ]] || fail "--exercise requires LUMINOPHORE_CANARY_EXERCISE=1"
+(( $# == 1 )) || fail "--exercise accepts no additional arguments"
+
+initial=$(LUMINOPHORE_HYPRCTL="$hyprctl_bin" "$verifier")
+jq -e '.presentationMode == "normal" and .wideKey == null' <<<"$initial" >/dev/null \
+    || fail "--exercise requires an initial NORMAL presentation"
+
+run_step() {
+    local action=$1
+    local direction=$2
+    local evidence
+    evidence=$(LUMINOPHORE_HYPRCTL="$hyprctl_bin" "$verifier" "$action" "$direction")
+    jq -e '.changed == true and .committed == true' <<<"$evidence" >/dev/null \
+        || fail "$action-$direction did not commit a state change"
+    emit exercise "$action-$direction" <<<"$evidence"
+}
+
+run_wide_step() {
+    local phase=$1
+    local expected_mode=$2
+    local evidence
+    evidence=$(LUMINOPHORE_HYPRCTL="$hyprctl_bin" "$verifier" wide-toggle)
+    jq -e --arg expected "$expected_mode" \
+        '.changed == true and .committed == true and .after.presentationMode == $expected' \
+        <<<"$evidence" >/dev/null \
+        || fail "wide-toggle-$phase did not commit the expected $expected_mode presentation"
+    emit exercise "wide-toggle-$phase" <<<"$evidence"
+}
+
+run_step view-move right
+run_step view-move left
+run_step view-adjust right
+run_step view-adjust left
+
+focus_address=$($hyprctl_bin -j activewindow | jq -er '.address | select(length > 0)') \
+    || fail "window exercise requires a focused client"
+run_step window-move right
+$hyprctl_bin dispatch "hl.dsp.focus({ window = \"address:${focus_address}\" })" >/dev/null \
+    || fail "could not restore focus to the exercised client"
+run_step window-move left
+
+run_wide_step enter wide
+run_wide_step leave normal

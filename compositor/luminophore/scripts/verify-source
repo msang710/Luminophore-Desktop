@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+source_root=$(cd -- "$script_dir/../.." && pwd)
+lock_file="$source_root/luminophore/upstream.lock"
+
+require_command() {
+    command -v "$1" >/dev/null 2>&1 || {
+        printf 'missing required command: %s\n' "$1" >&2
+        exit 1
+    }
+}
+
+for command_name in git jq cmake c++ ninja pkg-config sha256sum; do
+    require_command "$command_name"
+done
+
+expected_upstream=$(jq -er '.commit' "$lock_file")
+actual_version=$(tr -d '[:space:]' < "$source_root/VERSION")
+expected_version=$(jq -er '.version' "$lock_file")
+
+if [[ "$actual_version" != "$expected_version" ]]; then
+    printf 'VERSION mismatch: expected %s, got %s\n' "$expected_version" "$actual_version" >&2
+    exit 1
+fi
+
+git -C "$source_root" cat-file -e "$expected_upstream^{commit}"
+git -C "$source_root" merge-base --is-ancestor "$expected_upstream" HEAD || {
+    printf 'pinned upstream is not an ancestor of HEAD: %s\n' "$expected_upstream" >&2
+    exit 1
+}
+
+while IFS=$'\t' read -r path expected; do
+    actual=$(git -C "$source_root" submodule status -- "$path" | sed -E 's/^[ +-]?([0-9a-f]+).*/\1/')
+    marker=$(git -C "$source_root" submodule status -- "$path" | cut -c1)
+    if [[ "$marker" == "-" ]]; then
+        printf 'submodule is not initialized: %s\n' "$path" >&2
+        exit 1
+    fi
+    if [[ "$actual" != "$expected" ]]; then
+        printf 'submodule mismatch for %s: expected %s, got %s\n' "$path" "$expected" "$actual" >&2
+        exit 1
+    fi
+done < <(jq -r '.submodules | to_entries[] | [.key, .value] | @tsv' "$lock_file")
+
+pkg-config --atleast-version=0.9.3 aquamarine
+pkg-config --atleast-version=0.6.7 hyprlang
+pkg-config --atleast-version=0.1.7 hyprcursor
+pkg-config --atleast-version=0.14.0 hyprutils
+pkg-config --atleast-version=0.5.1 hyprgraphics
+
+printf 'source verification: PASS\n'
+printf 'upstream=%s version=%s head=%s\n' \
+    "$expected_upstream" "$expected_version" "$(git -C "$source_root" rev-parse HEAD)"

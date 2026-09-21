@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+
+config_home=${XDG_CONFIG_HOME:-"$HOME/.config"}
+user_unit_dir="$config_home/systemd/user"
+data_home=${XDG_DATA_HOME:-"$HOME/.local/share"}
+applications_dir="$data_home/applications"
+
+systemctl --user disable --now luminophore-shell.service luminophore-spotify.service || true
+rm -f "$user_unit_dir/luminophore-shell.service" "$user_unit_dir/luminophore-shell-failure.service" "$user_unit_dir/luminophore-spotify.service"
+rm -f "$applications_dir/io.github.msang710.LuminophoreSettings.desktop"
+systemctl --user daemon-reload

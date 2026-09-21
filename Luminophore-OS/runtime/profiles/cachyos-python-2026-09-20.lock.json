@@ -1,0 +1,63 @@
+{
+  "base_toolchain_sha256": "c84e6a5e1d68b10fd8dbb0e05cd298e3c2c58dc3c4fcd1716fb0a4dd2c4de444",
+  "packages": [
+    {
+      "archive": "python-cairo-1.29.1-1.1-x86_64_v3.pkg.tar.zst",
+      "name": "python-cairo",
+      "sha256": "89c3dc3434335f359a0545ae79e0b32793b544948edc50d177b608a7dc2a0a8c",
+      "signature_sha256": "d37bd30c5381cb336456212001a785a93e664eb3275135232eb116ef539c5238",
+      "version": "1.29.1-1.1"
+    },
+    {
+      "archive": "python-dbus-1.4.0-2-x86_64.pkg.tar.zst",
+      "name": "python-dbus",
+      "sha256": "7f1a7a1d5f3cfb5747defcda3b535839a97a3a9977f25cc4e75ed7afc6bfeb04",
+      "signature_sha256": "02bd6cf2a12ab4744552211bc6c08635e34f22cae862e3fe2bf7eac2e29dc71e",
+      "version": "1.4.0-2"
+    },
+    {
+      "archive": "python-numpy-2.5.3-1.1-x86_64_v3.pkg.tar.zst",
+      "name": "python-numpy",
+      "sha256": "135a3160a38a1e3693afe55acce5b56ef20073786fb404f8327ef2eb6e9587b0",
+      "signature_sha256": "d4c190da881729904efd11b9d416f9212017a115d3d4ca8e44cd4ddb469e5716",
+      "version": "2.5.3-1.1"
+    },
+    {
+      "archive": "cblas-3.12.1-2.1-x86_64_v3.pkg.tar.zst",
+      "name": "cblas",
+      "sha256": "694a37819effb1f88223115632f1ec1d90d501e8401cf4cb5407c8e295485346",
+      "signature_sha256": "19deb0ef231e917958a9506fba0d6991dc21b71e30fa1c55f1cdc4897d07965e",
+      "version": "3.12.1-2.1"
+    },
+    {
+      "archive": "blas-3.12.1-2.1-x86_64_v3.pkg.tar.zst",
+      "name": "blas",
+      "sha256": "669afaf33feee30738c7b49bd9f2dabd5cfc63989d3d0aa66b7ee99706fd1f34",
+      "signature_sha256": "67866845bea9e4a3a2543980547909b9abbd199b6d459abd06bce33d57e23f26",
+      "version": "3.12.1-2.1"
+    },
+    {
+      "archive": "lapack-3.12.1-2.1-x86_64_v3.pkg.tar.zst",
+      "name": "lapack",
+      "sha256": "38679283797b1eed852435d1f9d66c37f725cb57bc000f8a39417743ab1b8be1",
+      "signature_sha256": "00b5aeb00914b28790fddd2f02b6a57bdd75bbdf7d8db09033fd197cfd63ec87",
+      "version": "3.12.1-2.1"
+    },
+    {
+      "archive": "python-opengl-3.1.10-3-any.pkg.tar.zst",
+      "name": "python-opengl",
+      "version": "3.1.10-3",
+      "sha256": "d5025f158780e2c4a738c52647c714fdb9fb97af331d541c3959addc1c43d57f",
+      "signature_sha256": "fa6abb6117d0eb2044b807ff6522c4c054dd48802c7be78b74acafb49456b722"
+    }
+  ],
+  "python_version": "3.14",
+  "schema": "luminophore-python-input/v1",
+  "wheels": [
+    {
+      "filename": "opencv_python_headless-5.0.0.93-cp37-abi3-manylinux_2_28_x86_64.whl",
+      "sha256": "ed709fdf9aa0bd1f2ed8549e71d19449b03a675bb581eb292285f6861953be37",
+      "source": "PyPI opencv-python-headless==5.0.0.93"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "schema": "luminophore-upstream-lock/v1",
+  "name": "Hyprland",
+  "version": "0.56.2",
+  "remote": "https://github.com/hyprwm/Hyprland.git",
+  "commit": "efb50993780079460b0cbed1363e2166a2de1d9f",
+  "submodules": {
+    "subprojects/hyprland-protocols": "bd153e76f751f150a09328dbdeb5e4fab9d23622",
+    "subprojects/tracy": "05cceee0df3b8d7c6fa87e9638af311dbabc63cb",
+    "subprojects/udis86": "5336633af70f3917760a6d441ff02d93477b0c86"
+  }
+}

@@ -1,0 +1,39 @@
+#!/usr/bin/env python3
+import os
+from pathlib import Path
+import sys
+
+# The public dispatcher has already authenticated the active generation. A
+# socket request needs neither the private graphics stack nor daemon bootstrap.
+if sys.argv[1:2] == ["ctl"]:
+    from luminophore_shell.ctl import main
+    raise SystemExit(main())
+
+from luminophore_shell.bootstrap import LAYER_SHELL, configure_release, preload_entries, with_preload, without_preload
+
+# The installed profile compiler is shared by daemon and standalone Settings.
+profile_python = Path(__file__).resolve().parent / "luminophore_shell/profile-runtime/bin/python"
+if profile_python.is_file() and not os.environ.get("LUMINOPHORE_RELEASE_ROOT"):
+    os.environ.setdefault("LUMINOPHORE_PROFILE_PYTHON", str(profile_python))
+
+
+if os.environ.get("LUMINOPHORE_RELEASE_ROOT") and not Path(LAYER_SHELL).is_file():
+    raise RuntimeError("selected release is missing its private layer-shell library")
+
+if len(sys.argv) > 1 and sys.argv[1] in {"daemon", "greeter"} and Path(LAYER_SHELL).is_file():
+    preload = preload_entries(os.environ.get("LD_PRELOAD"))
+    if LAYER_SHELL not in preload:
+        environment = dict(os.environ)
+        environment["LD_PRELOAD"] = with_preload(preload, LAYER_SHELL)
+        os.execve(sys.executable, [sys.executable, "-B", __file__, *sys.argv[1:]], environment)
+    child_preload = without_preload(preload, LAYER_SHELL)
+    if child_preload is None:
+        os.environ.pop("LD_PRELOAD", None)
+    else:
+        os.environ["LD_PRELOAD"] = child_preload
+
+configure_release()
+
+from luminophore_shell.__main__ import main
+
+raise SystemExit(main())

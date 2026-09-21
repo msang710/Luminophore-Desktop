@@ -1,0 +1,65 @@
+#!/usr/bin/python3 -I
+"""Stable stdlib-only entry; desktop components use the verified private runtime."""
+import os
+from pathlib import Path
+import sys
+
+sys.path.insert(0, '/usr/lib/luminophore/runtime')
+from luminophore_runtime import cli
+from luminophore_runtime.common import ContractError, load
+from luminophore_runtime.desktop_session import check
+from luminophore_runtime.session import INTERACTIVE_SHELL_COMMANDS
+
+
+def main():
+    action = sys.argv[1:]
+    if action == ['check']:
+        return cli.main(['session-check'])
+    if action == ['ready']:
+        return cli.main(['session-ready'])
+    store = Path('/var/lib/luminophore')
+    extra = []
+    if action[:1] == ['component']:
+        if len(action) < 2 or action[1] not in {'shell', 'shell_cli', 'settings', 'control', 'portal'}:
+            raise ContractError('invalid session component')
+        record = check(public_control=action[1] in {'control', 'shell_cli'})
+        generation = record['generation']
+        if record.get('config_root'):
+            os.environ['LUMINOPHORE_CONFIG_ROOT'] = record['config_root']
+        settings_environment = record.get('settings_environment', {})
+        for key in ('LUMINOPHORE_SETTINGS_STATE_ROOT', 'LUMINOPHORE_SETTINGS_RECOVERY',
+                    'XDG_CONFIG_HOME', 'XDG_STATE_HOME', 'XDG_CACHE_HOME'):
+            if key in settings_environment:
+                os.environ[key] = settings_environment[key]
+        component = action[1]
+        extra = action[2:]
+        if component == 'control' or (component == 'shell_cli' and extra and extra[0] in INTERACTIVE_SHELL_COMMANDS):
+            from luminophore_runtime.installed import InstalledStore
+            with InstalledStore(store).interactive_session(record) as session:
+                command, environment = session.command(component, extra)
+                os.set_inheritable(session.lease_fd, True)
+                os.execve(command[0], command, environment)
+    elif not action:
+        state = load(store / 'state.json')
+        generation = state['selected']
+        component = 'compositor'
+    else:
+        raise ContractError('usage: luminophore-session [check|ready|component shell|settings|control]')
+    from luminophore_runtime.common import identifier
+    identifier(generation)
+    manifest = load(store / 'generations' / generation / 'release.json')
+    args = ['run', '--system-store', '--store', str(store), '--generation', generation,
+            '--component', component, '--config-version', str(manifest['compatibility']['config'])]
+    if component == 'compositor':
+        args.append('--desktop-session')
+    if extra:
+        args.extend(['--', *extra])
+    return cli.main(args)
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except (ContractError, OSError, ValueError, KeyError, TypeError) as error:
+        print('Luminophore session: ' + str(error), file=sys.stderr)
+        sys.exit(1)

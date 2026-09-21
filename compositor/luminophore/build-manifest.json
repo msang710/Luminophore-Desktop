@@ -1,0 +1,13 @@
+{
+  "schema": "luminophore-build-manifest/v1",
+  "role": "source-policy",
+  "product": "LUMINOPHORE Compositor",
+  "artifact_name": "luminophore-hyprland-canary",
+  "build_type": "Release",
+  "generator": "Ninja",
+  "upstream_lock": "luminophore/upstream.lock",
+  "patch_manifest": "luminophore/patch-manifest.json",
+  "generated_manifest": "luminophore/artifacts/<sha256>/build-manifest.json",
+  "live_install": false,
+  "default_session_mutation": false
+}

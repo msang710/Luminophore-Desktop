@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_path=$(readlink -f -- "$0")
+bin_dir=$(cd -- "$(dirname -- "$script_path")" && pwd)
+generation_root=$(cd -- "$bin_dir/.." && pwd)
+manifest="$generation_root/build-manifest.json"
+
+fail() {
+    printf 'invalid LUMINOPHORE runtime generation: %s\n' "$1" >&2
+    exit 1
+}
+
+[[ -r "$manifest" ]] || fail "missing build-manifest.json"
+[[ $(jq -er '.schema' "$manifest") == "luminophore-runtime-artifact/v1" ]] || fail "unsupported manifest schema"
+generation=$(jq -er '.generation' "$manifest") || fail "missing generation"
+luminophore_effects=$(jq -er 'if .luminophore_effects == true then "1" elif .luminophore_effects == false then "0" else error("invalid luminophore_effects") end' "$manifest") \
+    || fail "invalid luminophore_effects flag"
+verify_staging=0
+[[ "${1:-}" == "--verify-staging" ]] && verify_staging=1
+if (( ! verify_staging )); then
+    [[ $(basename -- "$generation_root") == "$generation" ]] || fail "directory and generation differ"
+fi
+
+for name in Hyprland hyprctl start-hyprland; do
+    binary="$bin_dir/$name"
+    [[ -x "$binary" ]] || fail "missing executable $name"
+    expected=$(jq -er --arg name "$name" '.binaries[$name].sha256' "$manifest") || fail "missing digest for $name"
+    actual=$(sha256sum "$binary" | awk '{print $1}')
+    [[ "$actual" == "$expected" ]] || fail "digest mismatch for $name"
+done
+
+mapfile -t runtime_files < <(jq -er '.runtime_files | keys[]' "$manifest") || fail "invalid runtime file list"
+for name in "${runtime_files[@]}"; do
+    runtime_file="$bin_dir/$name"
+    [[ -x "$runtime_file" ]] || fail "missing executable $name"
+    expected=$(jq -er --arg name "$name" '.runtime_files[$name].sha256' "$manifest") || fail "missing digest for $name"
+    actual=$(sha256sum "$runtime_file" | awk '{print $1}')
+    [[ "$actual" == "$expected" ]] || fail "digest mismatch for $name"
+done
+
+if [[ "${1:-}" == "--verify-only" || "${1:-}" == "--verify-staging" ]]; then
+    printf 'LUMINOPHORE_RUNTIME_OK generation=%s source=%s\n' "$generation" "$(jq -er '.source_commit' "$manifest")"
+    exit 0
+fi
+
+export LUMINOPHORE_COMPOSITOR=1
+export LUMINOPHORE_COMPOSITOR_ROOT="$generation_root"
+export LUMINOPHORE_SHELL_BLOOM="$luminophore_effects"
+export PATH="$bin_dir:$PATH"
+export LUMINOPHORE_CONFIG_ROOT=${LUMINOPHORE_CONFIG_ROOT:-"${XDG_CONFIG_HOME:-$HOME/.config}/luminophore"}
+config_path="$LUMINOPHORE_CONFIG_ROOT/settings.toml"
+[[ -f "$config_path" ]] || fail "native TOML configuration required; initialize through luminophore-runtime desktop-session"
+export LUMINOPHORE_CONFIG_PATH="$config_path"
+exec "$bin_dir/start-hyprland" --path "$bin_dir/Hyprland" -- --config "$config_path" "$@"

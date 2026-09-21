@@ -1,0 +1,39 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+from pathlib import Path
+import os
+
+
+AGENT_NAMES = (
+    "polkit-gnome-authentication-agent-1",
+    "polkit-kde-authentication-agent-1",
+    "lxqt-policykit-agent",
+    "hyprpolkitagent",
+)
+
+
+def find_other_agent(proc: Path = Path("/proc"), current_pid: int | None = None) -> str:
+    own_pid = os.getpid() if current_pid is None else current_pid
+    for process in proc.glob("[0-9]*"):
+        try:
+            if int(process.name) == own_pid:
+                continue
+            command = (process / "cmdline").read_bytes().replace(b"\0", b" ").decode("utf-8", "replace")
+        except (OSError, ValueError):
+            continue
+        if any(name in command for name in AGENT_NAMES):
+            return command.strip()
+    return ""
+
+
+def main() -> int:
+    existing = find_other_agent()
+    if existing:
+        print(f"another Polkit authentication agent is already running: {existing}")
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

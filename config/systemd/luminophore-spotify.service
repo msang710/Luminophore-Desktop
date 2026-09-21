@@ -1,0 +1,17 @@
+[Unit]
+Description=Spotify background player for Luminophore Shell
+PartOf=luminophore-session.target
+
+ConditionPathExists=%t/luminophore/session.env
+
+[Service]
+EnvironmentFile=%t/luminophore/session.env
+ExecCondition=/usr/bin/luminophore-session check
+Type=oneshot
+ExecCondition=/usr/bin/flatpak info com.spotify.Client
+ExecStart=/usr/bin/flatpak run --branch=stable --arch=x86_64 --command=spotify com.spotify.Client --minimized
+RemainAfterExit=yes
+TimeoutStopSec=10
+
+[Install]
+WantedBy=luminophore-session.target

@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+export XDG_SESSION_DESKTOP=luminophore-greeter
+export XDG_CURRENT_DESKTOP=Luminophore
+export XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+unset HYPRLAND_INSTANCE_SIGNATURE LD_LIBRARY_PATH PYTHONPATH PYTHONHOME GI_TYPELIB_PATH
+greeter_home=$(getent passwd "$(id -u)" | cut -d: -f6)
+if [ -d "$greeter_home" ] && [ -w "$greeter_home" ]; then
+    umask 077
+    exec >> "$greeter_home/luminophore-greeter-session.log" 2>&1
+fi
+exec /usr/lib/luminophore/runtime/luminophore-runtime run \
+    --system-store --store /var/lib/luminophore --host-root / \
+    --config-version 1 --component greeter_session

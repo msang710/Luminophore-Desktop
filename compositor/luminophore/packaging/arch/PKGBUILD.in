@@ -1,0 +1,34 @@
+# Rendered from a verified immutable release by luminophore_runtime.packaging.
+pkgname=luminophore-compositor
+pkgver=@VERSION@
+pkgrel=1
+pkgdesc='Independent Luminophore desktop and private runtime'
+arch=('x86_64')
+license=('custom')
+provides=()
+conflicts=()
+replaces=()
+depends=('bluez-utils' 'dbus' 'ddcutil' 'fcitx5' 'fd' 'glibc' 'gnome-keyring' 'greetd' 'gtklock'
+         'grim' 'hyprcursor' 'hyprpaper' 'hyprpicker' 'libdrm' 'libglvnd'
+         'libinput' 'librsvg' 'libsecret' 'libxkbcommon' 'matugen' 'mesa'
+         'networkmanager' 'pipewire' 'playerctl' 'polkit' 'polkit-gnome'
+         'python' 'slurp' 'swayidle' 'systemd' 'tuned' 'uwsm' 'wayland' 'wireplumber'
+         'wl-clipboard' 'xorg-xcursorgen' 'xdg-desktop-portal'
+         'xdg-desktop-portal-gtk' 'xdg-user-dirs' 'xorg-xwayland')
+optdepends=('fcitx5-hangul: Korean input'
+            'bluez: Bluetooth service for Bluetooth settings'
+            'awww: Awww wallpaper provider'
+            'fish: Optional command shell'
+            'flatpak: Flatpak application and Spotify autostart provider'
+            'ghostty: Optional terminal provider'
+            'libcanberra: Notification sound provider'
+            'libnotify: External failure notification provider'
+            'plasma-workspace: KDE color-scheme activation provider')
+options=('!strip' '!debug' '!lto' '!purge' '!zipman')
+install=luminophore.install
+source=('payload.tar')
+sha256sums=('@PAYLOAD_SHA256@')
+
+package() {
+    cp -a --no-preserve=ownership "$srcdir/payload/." "$pkgdir/"
+}

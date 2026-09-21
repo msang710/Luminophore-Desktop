@@ -1,0 +1,17 @@
+window {
+    background-color: #0b1020;
+}
+
+#window-box {
+    padding: 48px;
+    border-radius: 18px;
+    background-color: rgba(16, 24, 48, 0.92);
+}
+
+#clock-label, #date-label {
+    color: #f4f7ff;
+}
+
+#error-label {
+    color: #ff8f9c;
+}

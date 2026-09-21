@@ -1,0 +1,9 @@
+{
+  "schema": "luminophore-relocation-tool/v1",
+  "distribution": "PyPI patchelf==0.19.1.0",
+  "version": "0.19.1",
+  "archive": "patchelf-0.19.1.0-py3-none-manylinux1_x86_64.manylinux_2_5_x86_64.musllinux_1_1_x86_64.whl",
+  "archive_sha256": "a8f6331ccf40c345507279f755f4a38c2cb00b9efda746fd43c17713cce0aba4",
+  "executable_sha256": "7fdf9652d68729dc0ae202e30c2df71b957e89c19d0ab044d2a6f5441f767679",
+  "signature": "hash-pinned wheel; no distro detached signature"
+}

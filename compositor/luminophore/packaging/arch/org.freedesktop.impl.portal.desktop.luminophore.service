@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=org.freedesktop.impl.portal.desktop.luminophore
+Exec=/usr/bin/luminophore-session component portal
+SystemdService=luminophore-portal.service
